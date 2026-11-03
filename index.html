@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101d32">
+  <meta name="description" content="myLUAS: live Dublin tram forecasts and a data-grounded tram assistant.">
+  <title>myLUAS — Live Dublin tram companion</title>
+  <style>
+    :root {
+      --ink:#17243a; --muted:#657184; --navy:#101d32; --paper:#f4f6f4;
+      --white:#fff; --line:#e3e8e8; --green:#087d60; --red:#df5152;
+      --mint:#dff4e9; --gold:#f7cd71; --shadow:0 18px 60px rgba(22,39,54,.09);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+      color:var(--ink); background:var(--paper); color-scheme:light;
+    }
+    *{box-sizing:border-box} [hidden]{display:none!important} html{scroll-behavior:smooth} body{margin:0;min-width:320px}
+    button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+    :focus-visible{outline:3px solid #5a9efa;outline-offset:3px}
+    a{color:inherit} .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .shell{max-width:1370px;padding:0 30px;margin:0 auto}
+    .topbar{background:#fff;border-bottom:1px solid #e9edec}
+    .topbar-inner{height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+    .brand{display:flex;align-items:center;gap:13px;text-decoration:none}
+    .brand-icon{width:43px;height:43px;border-radius:14px;display:grid;place-items:center;background:var(--navy);color:#fff;box-shadow:0 6px 17px #101d3225}
+    .brand-title{font-size:25px;font-weight:850;letter-spacing:-1.4px;line-height:1}.brand-title em{font-style:normal;color:#df5152}
+    .brand-sub{display:block;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#788397;margin-top:5px;font-weight:700}
+    .header-right{display:flex;align-items:center;gap:13px}
+    .local-clock{font-size:12px;color:var(--muted);font-weight:750;white-space:nowrap}
+    .live-tag{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #d5e6df;background:#f5fcf8;border-radius:100px;color:#0b6f50;font-size:12px;font-weight:800;white-space:nowrap}
+    .pulse{height:8px;width:8px;border-radius:100%;background:#20ba76;box-shadow:0 0 0 4px #20ba761c;flex:0 0 8px}
+    .pulse.off{background:#e59339;box-shadow:0 0 0 4px #e593391c}
+    main{padding-top:30px;padding-bottom:36px}
+    .hero{background:var(--navy);color:#fff;border-radius:27px;min-height:246px;position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(220px,.7fr);align-items:center;box-shadow:var(--shadow)}
+    .hero-copy{padding:37px 42px;z-index:1;min-width:0}
+    .eyebrow{font-size:11px;font-weight:850;letter-spacing:2px;text-transform:uppercase;color:#eac779;display:flex;align-items:center;gap:9px}
+    .eyebrow:before{content:"";height:6px;width:6px;background:#f1c66c;border-radius:50%}
+    h1{font-size:clamp(32px,4vw,53px);letter-spacing:-2.4px;line-height:1.07;margin:14px 0 12px;font-weight:800}
+    .hero p{color:#bcc8d9;font-size:14px;line-height:1.6;margin:0 0 26px;max-width:570px}
+    .selector-row{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
+    .select-wrap{position:relative;min-width:230px;flex:1;max-width:430px}
+    .select-wrap select{width:100%;min-height:47px;appearance:none;background:#fff;border:1px solid #fff;border-radius:12px;padding:0 44px 0 15px;font-size:14px;font-weight:760;color:#162339}
+    .select-wrap:after{content:"⌄";position:absolute;right:17px;top:9px;font-size:23px;font-weight:500;color:#344155;pointer-events:none}
+    .hero-btn{min-height:47px;border:1px solid #58657a;background:#24324a;color:#fff;border-radius:12px;padding:0 15px;font-size:13px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+    .hero-btn:hover{background:#33445e}.hero-art{height:100%;position:relative;display:grid;place-items:center;opacity:.92;overflow:hidden}
+    .hero-art:before{content:"";width:380px;height:380px;position:absolute;border:1px solid #ffffff12;border-radius:50%;box-shadow:0 0 0 48px #ffffff07,0 0 0 98px #ffffff05;left:17%;top:-45%}
+    .train{width:min(340px,90%);height:auto;position:relative;z-index:1;filter:drop-shadow(0 15px 30px #0003)}
+    .utility-row{display:flex;justify-content:space-between;align-items:center;gap:13px;flex-wrap:wrap;margin:23px 0 18px}
+    .section-label{margin:0;font-size:20px;font-weight:800;letter-spacing:-.6px}
+    .utility-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .timestamp{font-size:12px;color:var(--muted);font-weight:650}.countdown{font-weight:800;font-variant-numeric:tabular-nums;color:#425069}
+    .refresh-btn{background:#fff;border:1px solid #dce2e3;border-radius:11px;padding:10px 13px;font-size:12px;font-weight:800;color:#334257;display:flex;align-items:center;gap:8px}
+    .refresh-btn:hover{background:#eaf2ee}
+    .error-box{border:1px solid #f3b9b9;background:#fff1ef;color:#8a282e;padding:14px 17px;border-radius:13px;margin:13px 0;font-size:13px;line-height:1.55;white-space:pre-line}
+    .hidden{display:none!important}
+    .dashboard-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.85fr);gap:22px;align-items:start}
+    .board{display:flex;flex-direction:column;gap:15px;min-width:0}
+    #directionCards{display:flex;flex-direction:column;gap:15px}
+    .arrival-card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 5px 25px #15283c08;overflow:hidden}
+    .direction-header{padding:19px 23px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #edf0f0}
+    .direction-title{display:flex;align-items:center;gap:12px;font-weight:800;font-size:16px}
+    .direction-dot{height:11px;width:11px;border-radius:50%;background:var(--red);box-shadow:0 0 0 5px #df515216}
+    .direction-dot.green{background:#0b946b;box-shadow:0 0 0 5px #0b946b18}
+    .direction-count{font-size:11px;font-weight:750;color:#7c8695;background:#f3f5f6;padding:7px 9px;border-radius:8px;white-space:nowrap}
+    .arrivals-list{padding:2px 23px 8px}
+    .arrival{min-height:80px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #edf0f0}
+    .arrival:last-child{border-bottom:none}
+    .arrival-first{display:flex;gap:13px;align-items:center;min-width:0}
+    .train-icon{flex:0 0 36px;height:36px;background:#f3f6f7;border-radius:11px;display:grid;place-items:center;color:#536176}
+    .dest-name{font-weight:800;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+    .dest-helper{display:block;font-size:11px;margin-top:4px;color:#8a94a1;font-weight:650}
+    .due-group{text-align:right;flex:0 0 auto}
+    .due-num{display:block;font-size:30px;line-height:1;font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-1.1px}
+    .due-num.due-now{font-size:22px;color:#0c8a61}
+    .due-unit{display:block;font-size:10px;font-weight:750;letter-spacing:1.2px;text-transform:uppercase;color:#84919f;margin-top:5px}
+    .empty-arrivals{color:var(--muted);padding:28px 0;font-size:13px;line-height:1.6}
+    .service-card{display:flex;align-items:start;gap:13px;padding:19px 21px;background:#eef8f2;border:1px solid #cfeadb;border-radius:17px}
+    .service-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;color:#0f7558;background:#d4eddf;flex:none}
+    .service-card h3{font-size:13px;margin:0 0 5px;font-weight:850;color:#176c54}.service-card p{margin:0;font-size:13px;line-height:1.5;color:#36574b}
+    .service-card.warning{background:#fff6e9;border-color:#f2d8af}.service-card.warning .service-icon{background:#f8e7c9;color:#91631c}.service-card.warning h3{color:#865917}.service-card.warning p{color:#765a39}
+    .source-info{font-size:11px;line-height:1.6;color:#8993a0;padding:2px 4px}
+    .chat-card{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 36px #182a3c0b;overflow:hidden;display:flex;flex-direction:column;min-height:605px}
+    .chat-top{padding:19px 20px;border-bottom:1px solid #edf0f0;display:flex;align-items:center;gap:11px}
+    .bot-avatar{width:44px;height:44px;border-radius:15px;background:#1c3047;color:#fff;display:grid;place-items:center;flex:none}
+    .chat-heading{flex:1;min-width:0}.chat-heading strong{display:block;font-size:15px;letter-spacing:-.2px}.chat-heading small{display:block;color:#8993a0;font-size:11px;margin-top:3px}
+    .chat-clear{border:0;border-radius:9px;padding:7px;color:#758194;background:#f4f6f7;display:grid;place-items:center}
+    .chat-messages{padding:21px 19px 18px;flex:1;min-height:262px;max-height:418px;overflow-y:auto;scroll-behavior:smooth;display:flex;flex-direction:column;gap:14px}
+    .message{display:flex;align-items:flex-start;gap:8px;max-width:100%}.message.user{justify-content:flex-end}
+    .small-avatar{width:26px;height:26px;flex:0 0 26px;border-radius:9px;display:grid;place-items:center;background:#eaf2f0;color:#0d7459}
+    .bubble{max-width:90%;font-size:13px;line-height:1.65;white-space:pre-line;overflow-wrap:anywhere;background:#f2f5f5;border-radius:5px 15px 15px 15px;padding:12px 14px;color:#354359}
+    .message.user .bubble{background:var(--navy);color:white;border-radius:15px 5px 15px 15px}
+    .chat-bottom{padding:15px 17px 18px;border-top:1px solid #eef1f1}
+    .suggestion-title{font-size:10px;letter-spacing:1.4px;font-weight:850;color:#919bab;text-transform:uppercase;margin-bottom:10px}
+    .suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px}
+    .chip{font-size:11px;font-weight:700;border:1px solid #e1e8e7;background:#f9fbfa;color:#47556a;border-radius:100px;padding:8px 11px;max-width:100%;text-align:left}
+    .chip:hover{border-color:#9bcdbc;background:#eef8f2}
+    .chat-form{display:flex;align-items:center;border:1px solid #dce4e5;border-radius:13px;background:#fff;padding:5px;gap:5px;box-shadow:0 4px 15px #11223306}
+    .chat-input{min-width:0;flex:1;border:0;outline:none;padding:10px 10px;font-size:13px;color:#15273b;background:transparent}
+    .chat-send{background:var(--navy);border:none;border-radius:10px;color:white;width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px}.chat-send:hover{background:#2b4569}
+    .chat-note{color:#98a2ae;font-size:10px;line-height:1.5;margin-top:10px;text-align:center}
+    footer{border-top:1px solid #e1e7e6;padding:23px 0 36px;font-size:12px;color:#7c8795}
+    .footer-content{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .footer-content a{color:#536479;text-underline-offset:3px}
+    @media(max-width:1050px){.dashboard-grid{grid-template-columns:minmax(0,1fr) minmax(310px,.85fr)}.hero-copy{padding:32px}.hero{grid-template-columns:1.5fr .5fr}.hero-art:before{left:-40%}.train{min-width:220px}}
+    @media(max-width:800px){.shell{padding:0 17px}.topbar-inner{height:73px}.brand-title{font-size:23px}.hero{grid-template-columns:1fr;min-height:0}.hero-copy{padding:33px 25px}.hero-art{display:none}.dashboard-grid{grid-template-columns:1fr}.chat-card{min-height:500px}.chat-messages{max-height:340px}.utility-row{margin-top:20px}.local-clock{display:none}}
+    @media(max-width:440px){.header-right{gap:6px}.live-tag{font-size:10px;padding:8px 9px}.brand-sub{font-size:9px}.brand-icon{width:39px;height:39px}.hero-copy{padding:29px 20px}h1{font-size:34px;letter-spacing:-1.7px}.select-wrap{max-width:none;flex-basis:100%}.hero-btn{flex:1}.direction-header,.arrivals-list{padding-left:17px;padding-right:17px}.arrival{min-height:76px}.dest-name{font-size:14px}.due-num{font-size:27px}.utility-row{align-items:flex-start}.section-label{font-size:19px}}
+    @media(prefers-reduced-motion:reduce){html,.chat-messages{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#top" aria-label="myLUAS home">
+        <span class="brand-icon" aria-hidden="true">
+          <svg width="27" height="27" viewBox="0 0 28 28" fill="none"><path d="M6 5.5h16v14.5H6z" rx="4" stroke="white" stroke-width="2.1" stroke-linejoin="round"/><path d="M7 12.5h14M10 20l-2 4m10-4 2 4M10 16h1m6 0h1" stroke="white" stroke-width="2.1" stroke-linecap="round"/><path d="M11 3h6" stroke="#ffce74" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </span>
+        <span><span class="brand-title">my<em>LUAS</em></span><span class="brand-sub">Dublin tram companion</span></span>
+      </a>
+      <div class="header-right">
+        <span class="local-clock" id="clock">Dublin time</span>
+        <span class="live-tag" id="liveTag"><span class="pulse off" id="livePulse"></span><span id="liveText">Connecting…</span></span>
+      </div>
+    </div>
+  </header>
+
+  <main id="top" class="shell">
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero-copy">
+        <div class="eyebrow">Know before you go</div>
+        <h1 id="heroTitle">Your city.<br>Your next tram.</h1>
+        <p>Real-time Luas departures, clearer answers, less waiting around. Pick a stop and ask away.</p>
+        <div class="selector-row">
+          <label class="sr-only" for="stopSelect">Choose a Luas stop</label>
+          <div class="select-wrap">
+            <select id="stopSelect" aria-label="Choose Luas stop"><option value="MYS">Mayor Square - NCI</option></select>
+          </div>
+          <button class="hero-btn" id="nearMeBtn" type="button" title="Find closest stop using your location">
+            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s7-6 7-13a7 7 0 1 0-14 0c0 7 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg> Near me
+          </button>
+          <button class="hero-btn" id="retryStopsBtn" type="button" hidden>Retry stops</button>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg class="train" viewBox="0 0 350 230" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 193H345M27 209H337" stroke="#668197" stroke-opacity=".3" stroke-width="2"/>
+          <path d="m59 184-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27" stroke="#668197" stroke-opacity=".25" stroke-width="3"/>
+          <path d="M81 39h158c28 0 45 16 45 44v79c0 15-9 24-25 24H83c-18 0-27-10-27-27V67c0-17 9-28 25-28Z" fill="#f8fbfa"/>
+          <path d="M85 46h147c24 0 39 13 39 36v50H68V65c0-11 6-19 17-19Z" fill="#2e435c"/>
+          <path d="M72 57h73v59H72V57Zm82 0h78c20 0 27 8 27 28v31H154V57Z" fill="#a8d1dd"/>
+          <path d="M77 62h63v49H77V62Zm82 0h72c18 0 23 6 23 23v26h-95V62Z" fill="#6c9eb0" fill-opacity=".5"/>
+          <path d="M65 138h216v13H65z" fill="#d44c4e"/><path d="M79 173h181" stroke="#cedbdb" stroke-width="5" stroke-linecap="round"/>
+          <rect x="95" y="152" width="23" height="10" rx="5" fill="#f7d67b"/><rect x="222" y="152" width="23" height="10" rx="5" fill="#f7d67b"/>
+          <path d="M101 185v13m141-13v13" stroke="#1a2839" stroke-width="10" stroke-linecap="round"/>
+          <path d="m173 37-5-19h45l-8 19" stroke="#eff4f1" stroke-width="5" stroke-linejoin="round"/><path d="M123 18h130" stroke="#d0dee0" stroke-width="3" stroke-linecap="round"/>
+          <rect x="137" y="49" width="67" height="9" rx="4.5" fill="#f0c56e"/><path d="m287 169 34 13m-34-4 34 13" stroke="#889eac" stroke-opacity=".55" stroke-width="2"/>
+        </svg>
+      </div>
+    </section>
+
+    <div class="utility-row">
+      <h2 class="section-label" id="boardTitle">Live arrivals · Mayor Square - NCI</h2>
+      <div class="utility-controls">
+        <span class="timestamp" id="lastUpdated">Last checked: —</span>
+        <span class="timestamp countdown" id="countdown">20s</span>
+        <button class="refresh-btn" id="refreshBtn" type="button" aria-label="Verify latest tram forecasts">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2"/><path d="M20 20v-4h-4"/></svg>
+          <span id="refreshLabel">Verify now</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="errorBox" class="error-box hidden" role="alert" aria-live="assertive"></div>
+    <div class="dashboard-grid">
+      <section class="board" aria-label="Live tram departures">
+        <div id="directionCards" aria-live="polite" aria-atomic="true">
+          <div class="arrival-card"><div class="direction-header"><span class="direction-title">Loading live trams…</span></div><div class="arrivals-list"><div class="empty-arrivals">Connecting to the Luas forecast feed.</div></div></div>
+        </div>
+        <div class="service-card" id="serviceCard">
+          <span class="service-icon" aria-hidden="true">✓</span>
+          <div><h3 id="serviceTitle">Service information</h3><p id="serviceMessage">Checking the latest service message…</p></div>
+        </div>
+        <div class="source-info" id="feedInfo">Forecasts are estimates, not a guarantee of arrival. Data is requested every 20 seconds.</div>
+      </section>
+
+      <aside class="chat-card" aria-label="Ask myLUAS chat assistant">
+        <div class="chat-top">
+          <span class="bot-avatar" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="14" rx="5"/><path d="M8 22l2-4h4l2 4M8.5 10h.01m7 0h.01M9 14h6"/></svg></span>
+          <div class="chat-heading"><strong>Ask myLUAS <span aria-hidden="true">✦</span></strong><small>Live-data assistant · no sign-in needed</small></div>
+          <button class="chat-clear" id="clearChatBtn" type="button" aria-label="Clear conversation" title="Clear conversation"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0-1 15H6L5 6m3 0V4h8v2m-6 4v7m4-7v7"/></svg></button>
+        </div>
+        <div class="chat-messages" id="messages" role="log" aria-live="polite" aria-label="Chat messages"></div>
+        <div class="chat-bottom">
+          <div class="suggestion-title">Try asking</div>
+          <div class="suggestions" id="suggestions">
+            <button class="chip" type="button" data-question="When is the next tram?">Next tram?</button>
+            <button class="chip" type="button" data-question="Are services running normally?">Service status</button>
+            <button class="chip" type="button" data-question="Next tram to The Point from Mayor Square">To The Point</button>
+            <button class="chip" type="button" data-question="Compare Mayor Square and Connolly">Compare stops</button>
+          </div>
+          <form class="chat-form" id="chatForm">
+            <label class="sr-only" for="chatInput">Ask a tram question</label>
+            <input id="chatInput" class="chat-input" type="text" placeholder="Ask about a tram or stop…" autocomplete="off" maxlength="350" required>
+            <button class="chat-send" id="chatSend" type="submit" aria-label="Send message"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-8-4 16-3.5-6.5L5 12Zm6.5 1.5L19 4"/></svg></button>
+          </form>
+          <div class="chat-note">Answers use fresh API checks, not guesswork. Not an official Luas app.</div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer>
+    <div class="shell footer-content">
+      <span>Data: Transport Infrastructure Ireland. Built by Peter Aluko for BDAIB.</span>
+      <span><a href="https://www.luas.ie/real-time-stop/" target="_blank" rel="noopener noreferrer">Check official Luas times ↗</a> · Independent student project</span>
+    </div>
+  </footer>
+
+  <script>
+  'use strict';
+  // Single-file app. Only the two class API endpoints are used; no API keys or AI services.
+  const API = 'https://luas-class.kluxy.app';
+  const REFRESH_MS = 20000;
+  const FETCH_TIMEOUT_MS = 12000;
+  const DEFAULT_STOP = 'MYS';
+  const STORE_KEY = 'myluas-selected-stop-v1';
+  const $ = id => document.getElementById(id);
+  const state = {
+    stops: [], stopId: DEFAULT_STOP, forecast: null, lastChecked: null,
+    lastProviderStamp: '', previousProviderStamp: '', relayEnds: null,
+    nextRefresh: Date.now() + REFRESH_MS, pollBusy: false, chatBusy: false,
+    boardSequence: 0, chatContext: {stopId: null, direction: null},
+    failed: false, queuedRefresh: false, previousForecast: null, previousChecked: null, errors: {}
+  };
+
+  const htmlEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const normalize = text => String(text ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+  const timeText = date => new Intl.DateTimeFormat('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Europe/Dublin'}).format(date);
+  const dueText = n => n === 0 ? 'Due' : String(n);
+  const validDue = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  const getStop = id => state.stops.find(s => s.id === id);
+  const currentName = () => getStop(state.stopId)?.name || (state.forecast?.stopName || 'Mayor Square - NCI');
+  const currentLine = () => getStop(state.stopId)?.line || 'red';
+
+  async function fetchJSON(url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+      if (!response.ok) throw new Error('The live feed returned HTTP ' + response.status + '.');
+      const body = await response.json();
+      if (!body || typeof body !== 'object') throw new Error('The feed returned an invalid response.');
+      return body;
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('The request took too long. Check your internet connection and try again.');
+      if (err instanceof TypeError) throw new Error('Could not connect to the live feed. Check your internet connection or browser permissions.');
+      throw err;
+    } finally { clearTimeout(timeout); }
+  }
+  function validateForecast(data, id) {
+    if (!Array.isArray(data.directions)) throw new Error('The forecast response is missing its direction list.');
+    if (data.stop && String(data.stop).toUpperCase() !== id) throw new Error('The forecast feed returned a different stop than requested.');
+    return {
+      stopName: typeof data.stopName === 'string' ? data.stopName : (getStop(id)?.name || id),
+      message: typeof data.message === 'string' ? data.message : 'No service message was provided.',
+      created: typeof data.created === 'string' ? data.created : null,
+      relay_ends: typeof data.relay_ends === 'string' ? data.relay_ends : null,
+      directions: data.directions.map((dir, i) => ({
+        name: typeof dir?.name === 'string' ? dir.name : 'Direction ' + (i+1),
+        trams: Array.isArray(dir?.trams) ? dir.trams.filter(t => t && validDue(t.due) && typeof t.destination === 'string')
+          .map(t => ({due:t.due,destination:t.destination})).sort((a,b) => a.due-b.due) : []
+      }))
+    };
+  }
+  function showError(message, kind='general') { state.errors[kind]=message; displayErrors(); }
+  function hideError(kind) { if (kind) delete state.errors[kind]; else state.errors={}; displayErrors(); }
+  function displayErrors() { const messages=Object.values(state.errors); $('errorBox').textContent=messages.join('\n'); $('errorBox').classList.toggle('hidden',!messages.length); }
+
+  async function loadStops() {
+    try {
+      const data = await fetchJSON(API + '/stops');
+      if (!Array.isArray(data.stops) || data.stops.length === 0) throw new Error('No stops were returned.');
+      state.stops = data.stops.filter(s => typeof s.id === 'string' && typeof s.name === 'string' && ['red','green'].includes(s.line));
+      if (!state.stops.length) throw new Error('No valid stop records were returned.');
+      $('stopSelect').replaceChildren();
+      for (const line of ['red','green']) {
+        const group = document.createElement('optgroup'); group.label = line === 'red' ? 'Red Line' : 'Green Line';
+        for (const stop of state.stops.filter(s => s.line === line)) {
+          const option = document.createElement('option'); option.value = stop.id; option.textContent = stop.name; group.appendChild(option);
+        }
+        $('stopSelect').appendChild(group);
+      }
+      if (!getStop(state.stopId)) state.stopId = DEFAULT_STOP;
+      $('stopSelect').value = state.stopId;
+      $('retryStopsBtn').hidden = true;
+      hideError('stops');
+      return true;
+    } catch (err) {
+      $('retryStopsBtn').hidden = false;
+      showError('Could not load the stop list: ' + err.message + ' The default Mayor Square stop may still work.', 'stops');
+      return false;
+    }
+  }
+
+  function cardMarkup(dir, index) {
+    const lineClass = currentLine() === 'green' ? 'green' : '';
+    const entries = dir.trams.slice(0,3);
+    return `<article class="arrival-card" aria-label="${htmlEscape(dir.name)} arrivals">
+      <div class="direction-header"><span class="direction-title"><span class="direction-dot ${lineClass}"></span>${htmlEscape(dir.name)}</span><span class="direction-count">NEXT ${entries.length} TRAMS</span></div>
+      <div class="arrivals-list">${entries.length ? entries.map((t,i) => `<div class="arrival">
+        <div class="arrival-first"><span class="train-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="16" rx="4"/><path d="M5 11h14M9 19l-2 3m8-3 2 3M9 15h.01M15 15h.01"/></svg></span>
+          <span><span class="dest-name">${htmlEscape(t.destination)}</span><span class="dest-helper">Tram ${i+1} · ${htmlEscape(dir.name)}</span></span></div>
+        <span class="due-group"><span class="due-num ${t.due===0?'due-now':''}">${htmlEscape(dueText(t.due))}</span><span class="due-unit">${t.due===0?'arriving':'min'}</span></span>
+      </div>`).join('') : '<div class="empty-arrivals">No upcoming trams listed for this direction right now.</div>'}</div>
+    </article>`;
+  }
+  function renderBoard() {
+    const data = state.forecast;
+    $('boardTitle').textContent = 'Live arrivals · ' + currentName();
+    if (!data) {
+      $('directionCards').innerHTML = '<div class="arrival-card"><div class="direction-header"><span class="direction-title">Waiting for live data</span></div><div class="arrivals-list"><div class="empty-arrivals">No verified forecast is available for this stop yet. Use “Verify now” to retry.</div></div></div>';
+      $('serviceTitle').textContent = 'Service information unavailable';
+      $('serviceCard').querySelector('.service-icon').textContent = '!';
+      $('serviceMessage').textContent = 'No live service message has been received.';
+      $('serviceCard').classList.add('warning');
+      $('lastUpdated').textContent = 'Last checked: —';
+      $('feedInfo').textContent = 'Forecasts are estimates, not a guarantee of arrival. Data is requested every 20 seconds.';
+      return;
+    }
+    $('directionCards').innerHTML = data.directions.length ? data.directions.map(cardMarkup).join('') : '<div class="arrival-card"><div class="arrivals-list"><div class="empty-arrivals">This forecast currently contains no directions.</div></div></div>';
+    const status = data.message.trim();
+    const normal = /\b(normal|normally|good service)\b/i.test(status) && !/\b(not|disruption|delay|suspend|cancel)\b/i.test(status);
+    $('serviceCard').classList.toggle('warning',!normal);
+    $('serviceCard').querySelector('.service-icon').textContent = normal ? '✓' : '!';
+    $('serviceTitle').textContent = normal ? 'Service running normally' : 'Latest service notice';
+    $('serviceMessage').textContent = status || 'No service message provided.';
+    $('lastUpdated').textContent = state.lastChecked ? 'Checked ' + timeText(state.lastChecked) : 'Last checked: —';
+    const stamp = data.created ? 'Source timestamp: ' + data.created.replace('T',' ') + ' (timezone unspecified). ' : 'No source timestamp provided. ';
+    const end = data.relay_ends ? 'Class relay scheduled to end ' + data.relay_ends.replace('T',' ').replace('Z',' UTC') + '. ' : '';
+    $('feedInfo').textContent = stamp + end + 'Forecasts are estimates; a new fetch does not guarantee new source data.';
+  }
+  function setConnectionUI() {
+    const age = state.lastChecked ? Date.now()-state.lastChecked.getTime() : Infinity;
+    const active = !!state.forecast && !state.failed && age < 65000;
+    $('livePulse').classList.toggle('off',!active);
+    $('liveText').textContent = active ? 'LIVE FEED' : state.failed ? 'FEED ERROR' : state.forecast ? 'STALE DATA' : 'CONNECTING';
+    $('countdown').textContent = Math.max(0,Math.ceil((state.nextRefresh-Date.now())/1000)) + 's';
+    $('clock').textContent = 'DUBLIN ' + timeText(new Date());
+  }
+  async function getForecast(id, updateSelected = true) {
+    const sequence = id === state.stopId && updateSelected ? ++state.boardSequence : null;
+    const raw = await fetchJSON(API + '/forecast?stop=' + encodeURIComponent(id));
+    const data = validateForecast(raw,id);
+    const checkedAt = new Date();
+    if (updateSelected && id === state.stopId && sequence === state.boardSequence) {
+      state.previousForecast = state.forecast;
+      state.previousChecked = state.lastChecked;
+      state.previousProviderStamp = state.lastProviderStamp;
+      state.lastProviderStamp = data.created || '';
+      state.forecast = data; state.lastChecked = checkedAt; state.failed = false;
+      state.nextRefresh = Date.now() + REFRESH_MS;
+      hideError('forecast'); renderBoard(); setConnectionUI();
+    }
+    return {data, checkedAt};
+  }
+  async function refreshSelected(manual=false) {
+    if (state.pollBusy) { if (manual) state.queuedRefresh = true; return null; }
+    state.pollBusy = true;
+    $('refreshBtn').disabled = true; $('refreshLabel').textContent = 'Checking…';
+    const id = state.stopId;
+    try { return await getForecast(id); }
+    catch (err) {
+      if (id === state.stopId) {
+        state.failed = true;
+        showError('Live forecast could not be updated: ' + err.message + (state.forecast ? ' Showing the last available forecast, which may be outdated.' : ''), 'forecast');
+        renderBoard(); setConnectionUI();
+      }
+      return null;
+    } finally {
+      state.pollBusy = false;
+      state.nextRefresh = Date.now()+REFRESH_MS;
+      $('refreshBtn').disabled = false; $('refreshLabel').textContent = 'Verify now';
+      setConnectionUI();
+      if (state.queuedRefresh) {state.queuedRefresh=false; refreshSelected(true);}
+    }
+  }
+  function chooseStop(id) {
+    if (!getStop(id) && state.stops.length) return;
+    state.stopId = id; state.forecast = null; state.lastChecked = null; state.failed = false;
+    state.lastProviderStamp = ''; state.previousProviderStamp = ''; state.boardSequence++;
+    state.previousForecast = null; state.previousChecked = null;
+    $('stopSelect').value = id; state.chatContext = {stopId:id,direction:null};
+    try { localStorage.setItem(STORE_KEY,id); } catch (_) { /* Browser storage can be blocked. */ }
+    hideError('forecast'); renderBoard(); setConnectionUI(); refreshSelected(true);
+  }
+
+  function matchStops(question) {
+    const q = ' ' + normalize(question) + ' ';
+    const found = new Map();
+    const aliases = [ ['nci','MYS'],['mayor square','MYS'],['stephens green','STS'],['st stephens green','STS'],['the point','TPT'],['oconnell gpo','OGP'],['oconnell upper','OUP'] ];
+    for (const stop of state.stops) {
+      const name = normalize(stop.name), shortName = name.replace(/\s+(nci|university|gpo|upper)$/,'');
+      const needles = [name]; if (shortName.length >= 5 && shortName !== name) needles.push(shortName);
+      for (const needle of needles) {
+        const idx = q.indexOf(' ' + needle + ' ');
+        if (idx !== -1 && (!found.has(stop.id) || found.get(stop.id).length < needle.length)) found.set(stop.id,{stop,index:idx,length:needle.length});
+      }
+      if (new RegExp('\\b'+stop.id+'\\b','i').test(question) && question.includes(stop.id)) {
+        if (!found.has(stop.id)) found.set(stop.id,{stop,index:q.indexOf(' '+stop.id.toLowerCase()+' '),length:stop.id.length});
+      }
+    }
+    for (const [alias,id] of aliases) {
+      const idx = q.indexOf(' '+alias+' ');
+      const stop = getStop(id);
+      if (idx >= 0 && stop && !found.has(id)) found.set(id,{stop,index:idx,length:alias.length});
+    }
+    return [...found.values()].sort((a,b) => a.index-b.index || b.length-a.length);
+  }
+  function pickBoardingStop(question, matches) {
+    if (!matches.length) return state.chatContext.stopId || state.stopId;
+    const q = normalize(question);
+    const from = matches.find(m => new RegExp('(?:from|at|for|in|on|near)\\s+$').test(q.slice(0,m.index).trimEnd()+' '));
+    if (from) return from.stop.id;
+    if (matches.length > 1) {
+      const dest = matches.find(m => new RegExp('(?:to|towards|toward|bound for)\\s+$').test(q.slice(0,m.index).trimEnd()+' '));
+      if (dest) return matches.find(m => m.stop.id !== dest.stop.id)?.stop.id || state.stopId;
+      return matches[0].stop.id;
+    }
+    // If phrased as "to Tallaght", keep the current boarding stop.
+    const only = matches[0];
+    if (new RegExp('(?:to|towards|toward|bound for)\\s+$').test(q.slice(0,only.index).trimEnd()+' ')) return state.chatContext.stopId || state.stopId;
+    return only.stop.id;
+  }
+  function directionFor(question, data) {
+    const q = normalize(question);
+    if (/\b(other|opposite) direction\b/.test(q) && state.chatContext.direction) return data.directions.find(d => normalize(d.name)!==normalize(state.chatContext.direction));
+    const match = data.directions.find(d => q.includes(normalize(d.name)));
+    return match || null;
+  }
+  function lineSummary(data, selectedDir=null) {
+    const directions = selectedDir ? [selectedDir] : data.directions;
+    if (!directions.length) return 'The feed has no direction information right now.';
+    return directions.map(d => {
+      const next = d.trams.slice(0,3);
+      return d.name + ': ' + (next.length ? next.map(t => t.destination + ' — ' + (t.due===0?'Due now':t.due+' min')).join('; ') : 'no trams currently listed');
+    }).join('\n');
+  }
+  async function answerQuestion(question) {
+    if (!state.stops.length) return 'I could not load the stop list yet. Press “Retry stops”, then ask again. You can still see the default stop if its forecast loads.';
+    const q = normalize(question);
+    const matches = matchStops(question);
+    const ids = [...new Set(matches.map(m => m.stop.id))];
+    let boardingId = pickBoardingStop(question,matches);
+    const requestedLine = /\bgreen line\b/.test(q) ? 'green' : /\bred line\b/.test(q) ? 'red' : null;
+    if (!ids.length && requestedLine && getStop(boardingId)?.line !== requestedLine) {
+      boardingId = (getStop(requestedLine==='green' ? 'STS' : 'MYS') || state.stops.find(s=>s.line===requestedLine))?.id || boardingId;
+    }
+    const compare = /\b(compare|versus|vs|difference between)\b/.test(q);
+    const explicitSwitch = /\b(switch|select|change|set|show me|use stop)\b/.test(q) && !compare;
+    const help = /^(help|what can you do|how does this work|what can i ask|hi|hello|hey)\b/.test(q);
+    const verify = /\b(verify|refresh|recheck|double check|check again|check now|up to date|real time|latest data)\b/.test(q);
+    const changes = /\b(changed|changes|change since|different since|since last check|anything new)\b/.test(q);
+    const status = /\b(service|disruption|delay|delayed|cancel|suspend|status|running normally|operating normally)\b/.test(q);
+    const timing = /\b(next|when|soonest|arrival|arrive|due|minutes|how long|tram|depart|schedule|times)\b/.test(q);
+    const destinationIntent = /\b(to|towards|toward|bound for)\b/.test(q);
+    const routeIntent = /\b(how do i get|route|journey|change lines|travel to)\b/.test(q);
+    const ageIntent = /\b(last updated|last checked|timestamp|fresh|source time|how old)\b/.test(q);
+    if (help) return 'I can check upcoming trams, compare stops, show service messages and verify the feed again.\n\nTry: “Next tram at Dundrum”, “Trams to Tallaght from Mayor Square”, “Compare Connolly and Heuston”, or “Is the Green Line running normally?”\n\nI work from the live feed, not a general-purpose AI model. I cannot guarantee train arrival times or plan complete journeys.';
+    if (compare) {
+      if (ids.length < 2) return 'Name two stops to compare. For example: “Compare Mayor Square and Connolly”.';
+      const a = getStop(ids[0]), b = getStop(ids[1]);
+      const [one,two] = await Promise.allSettled([getForecast(a.id),getForecast(b.id)]);
+      if (one.status === 'rejected' || two.status === 'rejected') throw new Error('One of the stop forecasts could not be checked. Please try again.');
+      state.chatContext.stopId = a.id; state.chatContext.direction = null;
+      const summary = item => {
+        const upcoming = item.data.directions.flatMap(d => d.trams.map(t => ({...t,direction:d.name}))).sort((x,y)=>x.due-y.due)[0];
+        return upcoming ? `${upcoming.destination} in ${upcoming.due===0?'0 (Due now)':upcoming.due+' min'} (${upcoming.direction})` : 'No trams currently listed';
+      };
+      return `Fresh check (${timeText(new Date())} Dublin time):\n${a.name}: ${summary(one.value)}\n${b.name}: ${summary(two.value)}\n\nThese are the earliest listed trams at each stop, not a journey-time comparison.`;
+    }
+    if (explicitSwitch && ids.length) {
+      chooseStop(ids[0]); state.chatContext.stopId = ids[0]; state.chatContext.direction = null;
+      return `I've selected ${getStop(ids[0]).name} on the ${getStop(ids[0]).line} line. The arrival board is checking its latest forecast now.`;
+    }
+    if (routeIntent) {
+      const destination = matches.find(m => m.stop.id !== boardingId)?.stop || matches[0]?.stop;
+      if (!destination) return 'Tell me where you want to travel from and to. I can identify Luas stops and check their current departures, but this feed does not contain routes, transfers or journey times.';
+      return `${destination.name} is on the ${destination.line === 'red' ? 'Red' : 'Green'} Line. The data provided here only contains stops and forecasts, so I cannot verify a full journey, transfer or travel time. For detailed directions, use the official Luas journey planner: https://www.luas.ie/`;
+    }
+    // Every information question makes an actual new network request.
+    const {data,checkedAt} = await getForecast(boardingId);
+    state.chatContext.stopId = boardingId;
+    const checked = 'Checked at ' + timeText(checkedAt) + ' Dublin time';
+    const provider = data.created ? '; source stamp ' + data.created.replace('T',' ') + ' (timezone unspecified)' : '; no source timestamp supplied';
+    if (changes) {
+      if (boardingId !== state.stopId || !state.previousForecast || !state.previousChecked) return `${checked}. I have only one comparable saved snapshot for this stop. Check again in 20 seconds or press “Verify now”, then ask what changed.`;
+      const before = state.previousForecast;
+      const oldFirst = before.directions.map(d => `${d.name}: ${d.trams.slice(0,3).map(t=>`${t.destination} ${t.due} min`).join(', ')}`).join(' | ');
+      const newFirst = data.directions.map(d => `${d.name}: ${d.trams.slice(0,3).map(t=>`${t.destination} ${t.due} min`).join(', ')}`).join(' | ');
+      const notice = before.message !== data.message ? `Service notice changed from “${before.message}” to “${data.message}”.` : 'Service notice is unchanged.';
+      const changedTimes = oldFirst !== newFirst ? 'The listed arrivals or minutes differ between checks.' : 'The listed first three arrivals match the previous check.';
+      return `Comparing checks at ${timeText(state.previousChecked)} and ${timeText(checkedAt)} (Dublin time):\n${notice}\n${changedTimes}\n\nLatest: ${lineSummary(data)}\n\nMinutes normally decrease as time passes; a difference alone does not prove a delay.`;
+    }
+    if (verify) {
+      const unchanged = boardingId === state.stopId && state.previousProviderStamp && state.previousProviderStamp === state.lastProviderStamp;
+      return `${checked}${provider}.\n\n${data.stopName}:\n${lineSummary(data)}\n\nService notice: ${data.message}\n${unchanged?'The source timestamp has not changed since the previous check.\n':''}This confirms a fresh request to the class relay, not an independent verification against the official Luas website.`;
+    }
+    if (ageIntent) return `${checked}${provider}.\nThe dashboard retrieves a new response every 20 seconds. A successful request may still contain unchanged source data.`;
+    if (status) return `${data.stopName}: “${data.message}”\n\n${checked}${provider}. This is the message returned for this stop. It does not independently establish the status of the entire network.`;
+    const direction = directionFor(question,data);
+    if (direction) state.chatContext.direction = direction.name;
+    if (/\b(other|opposite) direction\b/.test(q) && !direction) return 'I could not identify the other direction in this feed. Try asking for “Inbound” or “Outbound”.';
+    // A destination is an actual stop mentioned after "to" / "towards", excluding the boarding stop.
+    const destMatches = matches.filter(m => m.stop.id !== boardingId && /(?:to|towards|toward|bound for)\s+$/.test(q.slice(0,m.index).trimEnd()+' '));
+    const destination = destMatches[0]?.stop || (destinationIntent && ids.length===1 && ids[0]!==boardingId ? getStop(ids[0]) : null);
+    if (destination) {
+      const offerings = data.directions.flatMap(d => d.trams.filter(t => normalize(t.destination) === normalize(destination.name) || normalize(t.destination).includes(normalize(destination.name))).map(t=>({...t,direction:d.name}))).sort((x,y)=>x.due-y.due);
+      if (!offerings.length) return `${checked}. No tram displaying “${destination.name}” as its destination is listed at ${data.stopName} right now. This does not prove the journey is impossible; some trams may continue through that stop without displaying it as their destination.\n\n${lineSummary(data)}`;
+      return `${checked}. Trams displaying ${destination.name} from ${data.stopName}:\n${offerings.slice(0,3).map(t => '• ' + (t.due===0?'Due now':t.due+' min') + ' · ' + t.direction).join('\n')}\n\nTimes are live estimates.`;
+    }
+    if (direction) return `${data.stopName} · ${checked}\n${lineSummary(data,direction)}`;
+    const all = data.directions.flatMap(d => d.trams.map(t => ({...t,direction:d.name}))).sort((a,b)=>a.due-b.due);
+    if (!all.length) return `${checked}. No trams are currently listed at ${data.stopName}. Service notice: ${data.message}`;
+    if (timing && !/\b(all|both|every|three|3)\b/.test(q)) {
+      const soonest = all[0];
+      return `Next at ${data.stopName}: ${soonest.destination} (${soonest.direction}) — ${soonest.due===0?'Due now':soonest.due+' min'}.\n\nOther upcoming trams:\n${all.slice(1,4).map(t=>'• '+t.destination+' · '+t.direction+' · '+(t.due===0?'Due':t.due+' min')).join('\n') || 'None listed.'}\n\n${checked}.`;
+    }
+    return `${data.stopName} · ${checked}\n${lineSummary(data)}\n\nService notice: ${data.message}`;
+  }
+
+  function addMessage(text,who='bot') {
+    const item = document.createElement('div');item.className = 'message ' + who;
+    if (who==='bot') {
+      const avatar = document.createElement('span');avatar.className='small-avatar';avatar.textContent='✦';avatar.setAttribute('aria-hidden','true');item.appendChild(avatar);
+    }
+    const bubble = document.createElement('div');bubble.className='bubble';bubble.textContent=text;item.appendChild(bubble);
+    $('messages').appendChild(item);$('messages').scrollTop=$('messages').scrollHeight;
+    return item;
+  }
+  async function submitQuestion(question) {
+    const content=question.trim();if (!content || state.chatBusy) return;
+    addMessage(content,'user');$('chatInput').value='';
+    state.chatBusy=true;$('chatSend').disabled=true;
+    const pending=addMessage('Checking live data…');
+    try {
+      const reply=await answerQuestion(content);
+      pending.querySelector('.bubble').textContent=reply;
+    } catch (err) {
+      pending.querySelector('.bubble').textContent='I could not verify that from the live feed: '+err.message+' Please try again. I will not guess at an arrival time.';
+    } finally {
+      state.chatBusy=false;$('chatSend').disabled=false;$('messages').scrollTop=$('messages').scrollHeight;
+    }
+  }
+  function resetChat() {
+    $('messages').replaceChildren();state.chatContext={stopId:null,direction:null};
+    addMessage('Hi! 👋 I’m your myLUAS travel assistant. Ask me about upcoming trams, stop comparisons or service notices. I check live data when answering, so I won’t make up arrival times.');
+  }
+  function rad(deg){return deg*Math.PI/180}
+  function distanceKm(a,b,c,d){const R=6371,dt=rad(c-a),dn=rad(d-b),x=Math.sin(dt/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dn/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+  function findNearMe(){
+    hideError('location');
+    if (!state.stops.length) return showError('The stop list must load before nearby stops can be calculated.', 'location');
+    if (!navigator.geolocation) return showError('Your browser does not support location access. Choose a stop from the list instead.', 'location');
+    $('nearMeBtn').disabled=true;
+    navigator.geolocation.getCurrentPosition(pos=>{
+      $('nearMeBtn').disabled=false;
+      const nearby=state.stops.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng)).map(s=>({s,km:distanceKm(pos.coords.latitude,pos.coords.longitude,s.lat,s.lng)})).sort((a,b)=>a.km-b.km)[0];
+      if (!nearby) return showError('Stop locations were unavailable in the feed.', 'location');
+      chooseStop(nearby.s.id);
+      addMessage(`Your nearest listed stop by straight-line distance is ${nearby.s.name} (about ${nearby.km.toFixed(2)} km). This is not a walking-distance estimate. I've selected it.`);
+    },err=>{ $('nearMeBtn').disabled=false;showError('Location unavailable: '+err.message+' Choose your stop manually instead.', 'location'); },{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+  }
+  function wireEvents(){
+    $('stopSelect').addEventListener('change',e=>chooseStop(e.target.value));
+    $('nearMeBtn').addEventListener('click',findNearMe);
+    $('retryStopsBtn').addEventListener('click',async()=>{if(await loadStops()) chooseStop(state.stopId)});
+    $('refreshBtn').addEventListener('click',()=>refreshSelected(true));
+    $('chatForm').addEventListener('submit',e=>{e.preventDefault();submitQuestion($('chatInput').value)});
+    $('suggestions').addEventListener('click',e=>{const b=e.target.closest('button[data-question]');if(b)submitQuestion(b.dataset.question)});
+    $('clearChatBtn').addEventListener('click',resetChat);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden && (!state.lastChecked || Date.now()-state.lastChecked.getTime() >= REFRESH_MS)) refreshSelected()});
+  }
+  async function init(){
+    try {state.stopId=localStorage.getItem(STORE_KEY) || DEFAULT_STOP;}catch(_){state.stopId=DEFAULT_STOP;}
+    wireEvents();resetChat();setConnectionUI();
+    await loadStops();
+    if (state.stops.length && !getStop(state.stopId)) state.stopId=DEFAULT_STOP;
+    $('stopSelect').value=state.stopId;
+    renderBoard();await refreshSelected();
+    setInterval(()=>{setConnectionUI();if(Date.now()>=state.nextRefresh&&!state.pollBusy)refreshSelected()},1000);
+  }
+  init();
+  </script>
+</body>
+</html>
