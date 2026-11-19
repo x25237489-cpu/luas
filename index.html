@@ -217,8 +217,8 @@
 
   <script>
   'use strict';
-  // Single-file app. Only the two class API endpoints are used; no API keys or AI services.
-  const API = 'https://luas-class.kluxy.app';
+  // Single-file app. Only the public TII-backed relay endpoints are used; no API keys or AI services.
+  const API = 'https://myluas-live-feed.fit-coin-8703.chatgpt.site';
   const REFRESH_MS = 20000;
   const FETCH_TIMEOUT_MS = 12000;
   const DEFAULT_STOP = 'MYS';
@@ -263,7 +263,6 @@
       stopName: typeof data.stopName === 'string' ? data.stopName : (getStop(id)?.name || id),
       message: typeof data.message === 'string' ? data.message : 'No service message was provided.',
       created: typeof data.created === 'string' ? data.created : null,
-      relay_ends: typeof data.relay_ends === 'string' ? data.relay_ends : null,
       directions: data.directions.map((dir, i) => ({
         name: typeof dir?.name === 'string' ? dir.name : 'Direction ' + (i+1),
         trams: Array.isArray(dir?.trams) ? dir.trams.filter(t => t && validDue(t.due) && typeof t.destination === 'string')
@@ -335,8 +334,7 @@
     $('serviceMessage').textContent = status || 'No service message provided.';
     $('lastUpdated').textContent = state.lastChecked ? 'Checked ' + timeText(state.lastChecked) : 'Last checked: —';
     const stamp = data.created ? 'Source timestamp: ' + data.created.replace('T',' ') + ' (timezone unspecified). ' : 'No source timestamp provided. ';
-    const end = data.relay_ends ? 'Class relay scheduled to end ' + data.relay_ends.replace('T',' ').replace('Z',' UTC') + '. ' : '';
-    $('feedInfo').textContent = stamp + end + 'Forecasts are estimates; a new fetch does not guarantee new source data.';
+    $('feedInfo').textContent = stamp + 'Forecasts are estimates; a new fetch does not guarantee new source data.';
   }
   function setConnectionUI() {
     const age = state.lastChecked ? Date.now()-state.lastChecked.getTime() : Infinity;
@@ -371,7 +369,9 @@
     catch (err) {
       if (id === state.stopId) {
         state.failed = true;
-        showError('Live forecast could not be updated: ' + err.message + (state.forecast ? ' Showing the last available forecast, which may be outdated.' : ''), 'forecast');
+        state.forecast = null;
+        state.lastChecked = null;
+        showError('Live departures unavailable: ' + err.message, 'forecast');
         renderBoard(); setConnectionUI();
       }
       return null;
@@ -502,7 +502,7 @@
     }
     if (verify) {
       const unchanged = boardingId === state.stopId && state.previousProviderStamp && state.previousProviderStamp === state.lastProviderStamp;
-      return `${checked}${provider}.\n\n${data.stopName}:\n${lineSummary(data)}\n\nService notice: ${data.message}\n${unchanged?'The source timestamp has not changed since the previous check.\n':''}This confirms a fresh request to the class relay, not an independent verification against the official Luas website.`;
+      return `${checked}${provider}.\n\n${data.stopName}:\n${lineSummary(data)}\n\nService notice: ${data.message}\n${unchanged?'The source timestamp has not changed since the previous check.\n':''}This confirms a new request to the TII-backed relay, not an independent verification against the official Luas website.`;
     }
     if (ageIntent) return `${checked}${provider}.\nThe dashboard retrieves a new response every 20 seconds. A successful request may still contain unchanged source data.`;
     if (status) return `${data.stopName}: “${data.message}”\n\n${checked}${provider}. This is the message returned for this stop. It does not independently establish the status of the entire network.`;
