@@ -869,10 +869,11 @@
     if (!window.L) return null;
     if (!mapState.map) {
       mapState.map = L.map('directionsMap', { zoomControl: true }).setView(center, 15);
-      // Clean silver-white CartoDB Positron basemap matching the Royal White/Silver/Gold theme
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        maxZoom: 19
+      // OpenStreetMap standard tiles: no API key; follow OSM tile usage policy.
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
+        maxZoom: 19,
+        crossOrigin: true
       }).addTo(mapState.map);
     }
     setTimeout(() => mapState.map && mapState.map.invalidateSize(), 120);
@@ -1179,8 +1180,14 @@
 
   function appendMessage(role, text) {
     const log = $('messages');
+    // Avoid stacking identical location confirmations after repeated Near Me taps.
+    if (role === 'bot' && text.startsWith('Closest stop found:')) {
+      const last = log.lastElementChild;
+      if (last && last.dataset?.locationReply === text) return;
+    }
     const row = document.createElement('div');
     row.className = role === 'user' ? 'flex items-start justify-end gap-2' : 'flex items-start gap-2.5';
+    if (role === 'bot' && text.startsWith('Closest stop found:')) row.dataset.locationReply = text;
 
     if (role === 'bot') {
       const avatar = document.createElement('span');
