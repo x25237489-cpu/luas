@@ -2,250 +2,521 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101d32">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#C5A059">
   <meta name="description" content="myLUAS: live Dublin tram forecasts and a data-grounded tram assistant.">
-  <title>myLUAS — Live Dublin tram companion</title>
+  <title>myLUAS — Live Dublin Tram Companion</title>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet Interactive Map (Free OpenStreetMap, No API Key Required) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            royal: {
+              gold: '#C5A059',
+              goldLight: '#EAD9A8',
+              goldSoft: '#FBF7EC',
+              goldDark: '#947228',
+              silver: '#D6DCE5',
+              silverLight: '#F4F6F9',
+              navy: '#121C2D',
+            },
+            luas: {
+              red: '#D9383A',
+              green: '#00875A',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
   <style>
-    :root {
-      --ink:#17243a; --muted:#657184; --navy:#101d32; --paper:#f4f6f4;
-      --white:#fff; --line:#e3e8e8; --green:#087d60; --red:#df5152;
-      --mint:#dff4e9; --gold:#f7cd71; --shadow:0 18px 60px rgba(22,39,54,.09);
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-      color:var(--ink); background:var(--paper); color-scheme:light;
+    /* Minimal utility helpers for smooth scrolling, tabular numbers, and reduced motion */
+    html { scroll-behavior: smooth; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    [hidden] { display: none !important; }
+    /* Keep Leaflet map controls underneath the sticky header */
+    .leaflet-pane, .leaflet-top, .leaflet-bottom { z-index: 10 !important; }
+    @media (prefers-reduced-motion: reduce) {
+      html, #messages { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
-    *{box-sizing:border-box} [hidden]{display:none!important} html{scroll-behavior:smooth} body{margin:0;min-width:320px}
-    button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
-    :focus-visible{outline:3px solid #5a9efa;outline-offset:3px}
-    a{color:inherit} .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-    .shell{max-width:1370px;padding:0 30px;margin:0 auto}
-    .topbar{background:#fff;border-bottom:1px solid #e9edec}
-    .topbar-inner{height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}
-    .brand{display:flex;align-items:center;gap:13px;text-decoration:none}
-    .brand-icon{width:43px;height:43px;border-radius:14px;display:grid;place-items:center;background:var(--navy);color:#fff;box-shadow:0 6px 17px #101d3225}
-    .brand-title{font-size:25px;font-weight:850;letter-spacing:-1.4px;line-height:1}.brand-title em{font-style:normal;color:#df5152}
-    .brand-sub{display:block;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#788397;margin-top:5px;font-weight:700}
-    .header-right{display:flex;align-items:center;gap:13px}
-    .local-clock{font-size:12px;color:var(--muted);font-weight:750;white-space:nowrap}
-    .live-tag{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #d5e6df;background:#f5fcf8;border-radius:100px;color:#0b6f50;font-size:12px;font-weight:800;white-space:nowrap}
-    .pulse{height:8px;width:8px;border-radius:100%;background:#20ba76;box-shadow:0 0 0 4px #20ba761c;flex:0 0 8px}
-    .pulse.off{background:#e59339;box-shadow:0 0 0 4px #e593391c}
-    main{padding-top:30px;padding-bottom:36px}
-    .hero{background:var(--navy);color:#fff;border-radius:27px;min-height:246px;position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(220px,.7fr);align-items:center;box-shadow:var(--shadow)}
-    .hero-copy{padding:37px 42px;z-index:1;min-width:0}
-    .eyebrow{font-size:11px;font-weight:850;letter-spacing:2px;text-transform:uppercase;color:#eac779;display:flex;align-items:center;gap:9px}
-    .eyebrow:before{content:"";height:6px;width:6px;background:#f1c66c;border-radius:50%}
-    h1{font-size:clamp(32px,4vw,53px);letter-spacing:-2.4px;line-height:1.07;margin:14px 0 12px;font-weight:800}
-    .hero p{color:#bcc8d9;font-size:14px;line-height:1.6;margin:0 0 26px;max-width:570px}
-    .selector-row{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
-    .select-wrap{position:relative;min-width:230px;flex:1;max-width:430px}
-    .select-wrap select{width:100%;min-height:47px;appearance:none;background:#fff;border:1px solid #fff;border-radius:12px;padding:0 44px 0 15px;font-size:14px;font-weight:760;color:#162339}
-    .select-wrap:after{content:"⌄";position:absolute;right:17px;top:9px;font-size:23px;font-weight:500;color:#344155;pointer-events:none}
-    .hero-btn{min-height:47px;border:1px solid #58657a;background:#24324a;color:#fff;border-radius:12px;padding:0 15px;font-size:13px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-    .hero-btn:hover{background:#33445e}.hero-art{height:100%;position:relative;display:grid;place-items:center;opacity:.92;overflow:hidden}
-    .hero-art:before{content:"";width:380px;height:380px;position:absolute;border:1px solid #ffffff12;border-radius:50%;box-shadow:0 0 0 48px #ffffff07,0 0 0 98px #ffffff05;left:17%;top:-45%}
-    .train{width:min(340px,90%);height:auto;position:relative;z-index:1;filter:drop-shadow(0 15px 30px #0003)}
-    .utility-row{display:flex;justify-content:space-between;align-items:center;gap:13px;flex-wrap:wrap;margin:23px 0 18px}
-    .section-label{margin:0;font-size:20px;font-weight:800;letter-spacing:-.6px}
-    .utility-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .timestamp{font-size:12px;color:var(--muted);font-weight:650}.countdown{font-weight:800;font-variant-numeric:tabular-nums;color:#425069}
-    .refresh-btn{background:#fff;border:1px solid #dce2e3;border-radius:11px;padding:10px 13px;font-size:12px;font-weight:800;color:#334257;display:flex;align-items:center;gap:8px}
-    .refresh-btn:hover{background:#eaf2ee}
-    .error-box{border:1px solid #f3b9b9;background:#fff1ef;color:#8a282e;padding:14px 17px;border-radius:13px;margin:13px 0;font-size:13px;line-height:1.55;white-space:pre-line}
-    .hidden{display:none!important}
-    .dashboard-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.85fr);gap:22px;align-items:start}
-    .board{display:flex;flex-direction:column;gap:15px;min-width:0}
-    #directionCards{display:flex;flex-direction:column;gap:15px}
-    .arrival-card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 5px 25px #15283c08;overflow:hidden}
-    .direction-header{padding:19px 23px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #edf0f0}
-    .direction-title{display:flex;align-items:center;gap:12px;font-weight:800;font-size:16px}
-    .direction-dot{height:11px;width:11px;border-radius:50%;background:var(--red);box-shadow:0 0 0 5px #df515216}
-    .direction-dot.green{background:#0b946b;box-shadow:0 0 0 5px #0b946b18}
-    .direction-count{font-size:11px;font-weight:750;color:#7c8695;background:#f3f5f6;padding:7px 9px;border-radius:8px;white-space:nowrap}
-    .arrivals-list{padding:2px 23px 8px}
-    .arrival{min-height:80px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #edf0f0}
-    .arrival:last-child{border-bottom:none}
-    .arrival-first{display:flex;gap:13px;align-items:center;min-width:0}
-    .train-icon{flex:0 0 36px;height:36px;background:#f3f6f7;border-radius:11px;display:grid;place-items:center;color:#536176}
-    .dest-name{font-weight:800;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
-    .dest-helper{display:block;font-size:11px;margin-top:4px;color:#8a94a1;font-weight:650}
-    .due-group{text-align:right;flex:0 0 auto}
-    .due-num{display:block;font-size:30px;line-height:1;font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-1.1px}
-    .due-num.due-now{font-size:22px;color:#0c8a61}
-    .due-unit{display:block;font-size:10px;font-weight:750;letter-spacing:1.2px;text-transform:uppercase;color:#84919f;margin-top:5px}
-    .empty-arrivals{color:var(--muted);padding:28px 0;font-size:13px;line-height:1.6}
-    .service-card{display:flex;align-items:start;gap:13px;padding:19px 21px;background:#eef8f2;border:1px solid #cfeadb;border-radius:17px}
-    .service-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;color:#0f7558;background:#d4eddf;flex:none}
-    .service-card h3{font-size:13px;margin:0 0 5px;font-weight:850;color:#176c54}.service-card p{margin:0;font-size:13px;line-height:1.5;color:#36574b}
-    .service-card.warning{background:#fff6e9;border-color:#f2d8af}.service-card.warning .service-icon{background:#f8e7c9;color:#91631c}.service-card.warning h3{color:#865917}.service-card.warning p{color:#765a39}
-    .source-info{font-size:11px;line-height:1.6;color:#8993a0;padding:2px 4px}
-    .chat-card{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 36px #182a3c0b;overflow:hidden;display:flex;flex-direction:column;min-height:605px}
-    .chat-top{padding:19px 20px;border-bottom:1px solid #edf0f0;display:flex;align-items:center;gap:11px}
-    .bot-avatar{width:44px;height:44px;border-radius:15px;background:#1c3047;color:#fff;display:grid;place-items:center;flex:none}
-    .chat-heading{flex:1;min-width:0}.chat-heading strong{display:block;font-size:15px;letter-spacing:-.2px}.chat-heading small{display:block;color:#8993a0;font-size:11px;margin-top:3px}
-    .chat-clear{border:0;border-radius:9px;padding:7px;color:#758194;background:#f4f6f7;display:grid;place-items:center}
-    .chat-messages{padding:21px 19px 18px;flex:1;min-height:262px;max-height:418px;overflow-y:auto;scroll-behavior:smooth;display:flex;flex-direction:column;gap:14px}
-    .message{display:flex;align-items:flex-start;gap:8px;max-width:100%}.message.user{justify-content:flex-end}
-    .small-avatar{width:26px;height:26px;flex:0 0 26px;border-radius:9px;display:grid;place-items:center;background:#eaf2f0;color:#0d7459}
-    .bubble{max-width:90%;font-size:13px;line-height:1.65;white-space:pre-line;overflow-wrap:anywhere;background:#f2f5f5;border-radius:5px 15px 15px 15px;padding:12px 14px;color:#354359}
-    .message.user .bubble{background:var(--navy);color:white;border-radius:15px 5px 15px 15px}
-    .chat-bottom{padding:15px 17px 18px;border-top:1px solid #eef1f1}
-    .suggestion-title{font-size:10px;letter-spacing:1.4px;font-weight:850;color:#919bab;text-transform:uppercase;margin-bottom:10px}
-    .suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px}
-    .chip{font-size:11px;font-weight:700;border:1px solid #e1e8e7;background:#f9fbfa;color:#47556a;border-radius:100px;padding:8px 11px;max-width:100%;text-align:left}
-    .chip:hover{border-color:#9bcdbc;background:#eef8f2}
-    .chat-form{display:flex;align-items:center;border:1px solid #dce4e5;border-radius:13px;background:#fff;padding:5px;gap:5px;box-shadow:0 4px 15px #11223306}
-    .chat-input{min-width:0;flex:1;border:0;outline:none;padding:10px 10px;font-size:13px;color:#15273b;background:transparent}
-    .chat-send{background:var(--navy);border:none;border-radius:10px;color:white;width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px}.chat-send:hover{background:#2b4569}
-    .chat-note{color:#98a2ae;font-size:10px;line-height:1.5;margin-top:10px;text-align:center}
-    footer{border-top:1px solid #e1e7e6;padding:23px 0 36px;font-size:12px;color:#7c8795}
-    .footer-content{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-    .footer-content a{color:#536479;text-underline-offset:3px}
-    @media(max-width:1050px){.dashboard-grid{grid-template-columns:minmax(0,1fr) minmax(310px,.85fr)}.hero-copy{padding:32px}.hero{grid-template-columns:1.5fr .5fr}.hero-art:before{left:-40%}.train{min-width:220px}}
-    @media(max-width:800px){.shell{padding:0 17px}.topbar-inner{height:73px}.brand-title{font-size:23px}.hero{grid-template-columns:1fr;min-height:0}.hero-copy{padding:33px 25px}.hero-art{display:none}.dashboard-grid{grid-template-columns:1fr}.chat-card{min-height:500px}.chat-messages{max-height:340px}.utility-row{margin-top:20px}.local-clock{display:none}}
-    @media(max-width:440px){.header-right{gap:6px}.live-tag{font-size:10px;padding:8px 9px}.brand-sub{font-size:9px}.brand-icon{width:39px;height:39px}.hero-copy{padding:29px 20px}h1{font-size:34px;letter-spacing:-1.7px}.select-wrap{max-width:none;flex-basis:100%}.hero-btn{flex:1}.direction-header,.arrivals-list{padding-left:17px;padding-right:17px}.arrival{min-height:76px}.dest-name{font-size:14px}.due-num{font-size:27px}.utility-row{align-items:flex-start}.section-label{font-size:19px}}
-    @media(prefers-reduced-motion:reduce){html,.chat-messages{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
   </style>
 </head>
-<body>
-  <header class="topbar">
-    <div class="shell topbar-inner">
-      <a class="brand" href="#top" aria-label="myLUAS home">
-        <span class="brand-icon" aria-hidden="true">
-          <svg width="27" height="27" viewBox="0 0 28 28" fill="none"><path d="M6 5.5h16v14.5H6z" rx="4" stroke="white" stroke-width="2.1" stroke-linejoin="round"/><path d="M7 12.5h14M10 20l-2 4m10-4 2 4M10 16h1m6 0h1" stroke="white" stroke-width="2.1" stroke-linecap="round"/><path d="M11 3h6" stroke="#ffce74" stroke-width="2.2" stroke-linecap="round"/></svg>
+<body class="bg-royal-silverLight text-royal-navy font-sans antialiased min-h-screen flex flex-col selection:bg-royal-gold selection:text-white" data-line="red">
+
+  <!-- Top Navigation Bar (White, Silver & Gold Trim) -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-t-[3px] border-t-royal-gold border-b border-b-royal-silver/80 shadow-sm shadow-slate-900/[0.03]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <a href="#top" class="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-gold rounded-xl" aria-label="myLUAS home">
+        <span class="w-11 h-11 rounded-2xl bg-gradient-to-br from-white via-royal-silverLight to-slate-200/80 border border-royal-gold/60 text-royal-goldDark grid place-items-center shadow-sm shadow-royal-gold/15 group-hover:scale-105 transition-transform" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+            <rect x="6" y="5.5" width="16" height="14.5" rx="4" stroke="#947228" stroke-width="2.1" stroke-linejoin="round"/>
+            <path d="M7 12.5h14M10 20l-2 4m10-4 2 4M10 16h1m6 0h1" stroke="#947228" stroke-width="2.1" stroke-linecap="round"/>
+            <path d="M11 3h6" stroke="#C5A059" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
         </span>
-        <span><span class="brand-title">my<em>LUAS</em></span><span class="brand-sub">Dublin tram companion</span></span>
+        <span>
+          <span class="block text-2xl font-extrabold tracking-tight leading-none text-royal-navy">
+            my<span class="text-royal-goldDark">LUAS</span>
+          </span>
+          <span class="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mt-1">
+            Dublin Tram Companion
+          </span>
+        </span>
       </a>
-      <div class="header-right">
-        <span class="local-clock" id="clock">Dublin time</span>
-        <span class="live-tag" id="liveTag"><span class="pulse off" id="livePulse"></span><span id="liveText">Connecting…</span></span>
+
+      <div class="flex items-center gap-3">
+        <span id="clock" class="hidden sm:inline-block text-xs font-bold text-slate-500 tabular-nums tracking-wide">
+          DUBLIN --:--:--
+        </span>
+        <span id="liveTag" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide whitespace-nowrap">
+          <span id="livePulse" class="w-2 h-2 rounded-full bg-amber-500 ring-4 ring-amber-500/20 flex-none"></span>
+          <span id="liveText">CONNECTING</span>
+        </span>
       </div>
     </div>
   </header>
 
-  <main id="top" class="shell">
-    <section class="hero" aria-labelledby="heroTitle">
-      <div class="hero-copy">
-        <div class="eyebrow">Know before you go</div>
-        <h1 id="heroTitle">Your city.<br>Your next tram.</h1>
-        <p>Real-time Luas departures, clearer answers, less waiting around. Pick a stop and ask away.</p>
-        <div class="selector-row">
-          <label class="sr-only" for="stopSelect">Choose a Luas stop</label>
-          <div class="select-wrap">
-            <select id="stopSelect" aria-label="Choose Luas stop"><option value="MYS">Mayor Square - NCI</option></select>
-          </div>
-          <button class="hero-btn" id="nearMeBtn" type="button" title="Find closest stop using your location">
-            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s7-6 7-13a7 7 0 1 0-14 0c0 7 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg> Near me
-          </button>
-          <button class="hero-btn" id="retryStopsBtn" type="button" hidden>Retry stops</button>
+  <!-- Main Content -->
+  <main id="top" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- Hero Section: Royal White, Silver & Gold Frame with Real Dublin Luas Photography -->
+    <section class="relative rounded-3xl overflow-hidden bg-white text-royal-navy shadow-xl shadow-slate-900/[0.06] border border-royal-silver ring-1 ring-royal-gold/25" aria-labelledby="heroTitle">
+      <!-- Metallic Gold Top Accent Bar -->
+      <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-royal-goldDark via-royal-gold to-royal-goldLight z-20"></div>
+
+      <!-- Real Dublin Luas Tram Background Image (Wikimedia Commons) with SVG fallback -->
+      <div class="absolute inset-0 pointer-events-none select-none overflow-hidden">
+        <img
+          id="heroTramPhoto"
+          src="https://commons.wikimedia.org/wiki/Special:FilePath/Mayor_Street_Upper_Luas_(48128359832).jpg?width=1400"
+          alt="Dublin Luas Alstom Citadis tram running through the city"
+          class="w-full h-full object-cover object-right opacity-90 transition-opacity duration-500"
+          onerror="this.style.display='none'; document.getElementById('heroTramFallback').classList.remove('hidden');"
+        />
+
+        <!-- Authentic Alstom Citadis Luas Fallback SVG (Silver & Gold Luxury Edition) -->
+        <div id="heroTramFallback" class="hidden absolute inset-0 bg-gradient-to-br from-white via-royal-silverLight to-slate-200 flex items-center justify-end pr-6 lg:pr-12">
+          <svg class="w-[420px] max-w-[90%] h-auto opacity-95 drop-shadow-xl" viewBox="0 0 460 250" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M0 24H460" stroke="#94A3B8" stroke-opacity="0.45" stroke-width="2"/>
+            <path d="M10 218H450M30 232H440" stroke="#94A3B8" stroke-opacity="0.4" stroke-width="2.5"/>
+            <path d="M210 58L245 24H285L260 58" stroke="#64748B" stroke-width="4" stroke-linejoin="round"/>
+            <path d="M232 24H298" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+            <rect x="265" y="64" width="165" height="142" rx="14" fill="#E2E8F0"/>
+            <rect x="278" y="84" width="54" height="58" rx="6" fill="#1E293B"/>
+            <rect x="342" y="84" width="54" height="58" rx="6" fill="#1E293B"/>
+            <rect x="265" y="152" width="165" height="14" fill="#C5A059"/>
+            <rect x="265" y="166" width="165" height="5" fill="#94A3B8"/>
+            <path d="M88 58H274V206H62C46 206 38 195 42 178L58 104C63 76 74 58 88 58Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+            <path d="M78 72H165V142H54L68 88C71 78 74 72 78 72Z" fill="#0F172A"/>
+            <path d="M84 78H157V135H62L74 91C76 82 79 78 84 78Z" fill="#334155"/>
+            <rect x="92" y="83" width="56" height="14" rx="4" fill="#090D16"/>
+            <rect x="97" y="88" width="46" height="4" rx="2" fill="#EAD9A8"/>
+            <rect x="176" y="78" width="42" height="62" rx="6" fill="#1E293B"/>
+            <rect x="226" y="78" width="38" height="62" rx="6" fill="#1E293B"/>
+            <path d="M48 152H274V166H44L48 152Z" fill="#C5A059"/>
+            <path d="M44 166H274V171H43L44 166Z" fill="#947228"/>
+            <rect x="52" y="180" width="22" height="10" rx="5" fill="#FDE68A"/>
+            <rect x="122" y="180" width="22" height="10" rx="5" fill="#FDE68A"/>
+            <rect x="82" y="204" width="42" height="14" rx="6" fill="#0F172A"/>
+            <rect x="195" y="204" width="42" height="14" rx="6" fill="#0F172A"/>
+            <rect x="315" y="204" width="42" height="14" rx="6" fill="#0F172A"/>
+          </svg>
         </div>
+
+        <!-- Luminous White-to-Silver Frost Overlay for Crisp Legibility & Royal Finish -->
+        <div class="absolute inset-0 bg-gradient-to-r from-white via-white/95 sm:via-white/90 to-white/15"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-royal-silverLight/70 via-transparent to-transparent"></div>
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <svg class="train" viewBox="0 0 350 230" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10 193H345M27 209H337" stroke="#668197" stroke-opacity=".3" stroke-width="2"/>
-          <path d="m59 184-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27m39-27-16 27" stroke="#668197" stroke-opacity=".25" stroke-width="3"/>
-          <path d="M81 39h158c28 0 45 16 45 44v79c0 15-9 24-25 24H83c-18 0-27-10-27-27V67c0-17 9-28 25-28Z" fill="#f8fbfa"/>
-          <path d="M85 46h147c24 0 39 13 39 36v50H68V65c0-11 6-19 17-19Z" fill="#2e435c"/>
-          <path d="M72 57h73v59H72V57Zm82 0h78c20 0 27 8 27 28v31H154V57Z" fill="#a8d1dd"/>
-          <path d="M77 62h63v49H77V62Zm82 0h72c18 0 23 6 23 23v26h-95V62Z" fill="#6c9eb0" fill-opacity=".5"/>
-          <path d="M65 138h216v13H65z" fill="#d44c4e"/><path d="M79 173h181" stroke="#cedbdb" stroke-width="5" stroke-linecap="round"/>
-          <rect x="95" y="152" width="23" height="10" rx="5" fill="#f7d67b"/><rect x="222" y="152" width="23" height="10" rx="5" fill="#f7d67b"/>
-          <path d="M101 185v13m141-13v13" stroke="#1a2839" stroke-width="10" stroke-linecap="round"/>
-          <path d="m173 37-5-19h45l-8 19" stroke="#eff4f1" stroke-width="5" stroke-linejoin="round"/><path d="M123 18h130" stroke="#d0dee0" stroke-width="3" stroke-linecap="round"/>
-          <rect x="137" y="49" width="67" height="9" rx="4.5" fill="#f0c56e"/><path d="m287 169 34 13m-34-4 34 13" stroke="#889eac" stroke-opacity=".55" stroke-width="2"/>
-        </svg>
+
+      <!-- Hero Content -->
+      <div class="relative z-10 p-6 sm:p-10 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+        <div class="lg:col-span-8">
+          <div class="flex flex-wrap items-center gap-2.5 mb-4">
+            <span id="heroLineBadge" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-red-50 text-red-700 border border-red-200">
+              <span id="heroLineDot" class="w-2 h-2 rounded-full bg-luas-red"></span>
+              <span id="heroLineText">Red Line</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-royal-goldDark">
+              <span class="w-1.5 h-1.5 rounded-full bg-royal-gold"></span>
+              Real-Time Dublin Forecasts
+            </span>
+          </div>
+
+          <h1 id="heroTitle" class="text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.08] text-royal-navy mb-3">
+            Your city.<br>Your next <span class="text-royal-goldDark">Luas</span>.
+          </h1>
+          <p class="text-slate-600 text-sm sm:text-base leading-relaxed max-w-xl mb-7 font-medium">
+            Live Transport Infrastructure Ireland tram departures, clearer service updates, and a data-grounded assistant. Pick a stop or tap Near Me.
+          </p>
+
+          <!-- Stop Selector Controls -->
+          <div class="flex flex-wrap items-stretch gap-2.5 max-w-2xl">
+            <label class="sr-only" for="stopSelect">Choose a Luas stop</label>
+            <div class="relative flex-1 min-w-[230px]">
+              <select
+                id="stopSelect"
+                class="w-full h-12 appearance-none bg-white text-royal-navy font-bold text-sm rounded-xl pl-4 pr-11 shadow-sm border border-royal-silver hover:border-royal-gold focus:outline-none focus:ring-2 focus:ring-royal-gold cursor-pointer transition"
+              >
+                <option value="MYS">Mayor Square - NCI</option>
+              </select>
+              <svg class="w-5 h-5 text-royal-goldDark absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </div>
+
+            <button
+              id="nearMeBtn"
+              type="button"
+              title="Find closest stop using your location"
+              class="h-12 px-5 rounded-xl bg-gradient-to-r from-royal-goldDark to-royal-gold hover:brightness-105 active:scale-[0.98] shadow-md shadow-royal-gold/25 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition"
+            >
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s7-6 7-13a7 7 0 1 0-14 0c0 7 7 13 7 13Z"/>
+                <circle cx="12" cy="9" r="2.5"/>
+              </svg>
+              <span>Near me</span>
+            </button>
+
+            <button
+              id="directionsBtn"
+              type="button"
+              title="Get walking directions to the selected stop"
+              class="h-12 px-4 rounded-xl bg-white hover:bg-royal-goldSoft border border-royal-silver hover:border-royal-gold text-royal-navy text-sm font-bold inline-flex items-center justify-center gap-2 shadow-sm transition"
+            >
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#947228" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+              </svg>
+              <span>Directions</span>
+            </button>
+
+            <button
+              id="retryStopsBtn"
+              type="button"
+              hidden
+              class="h-12 px-4 rounded-xl bg-royal-silverLight hover:bg-slate-200 border border-royal-silver text-royal-navy text-sm font-bold inline-flex items-center justify-center gap-2 transition"
+            >
+              Retry stops
+            </button>
+          </div>
+        </div>
+
+        <!-- Subtle Frosted White & Gold Caption Pill on Desktop -->
+        <div class="hidden lg:flex lg:col-span-4 justify-end items-end">
+          <div class="px-3.5 py-2 rounded-xl bg-white/85 backdrop-blur-md border border-royal-gold/40 shadow-sm text-[11px] font-bold text-royal-navy flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-royal-gold"></span>
+            <span>Alstom Citadis · Dublin Docklands</span>
+          </div>
+        </div>
       </div>
     </section>
 
-    <div class="utility-row">
-      <h2 class="section-label" id="boardTitle">Live arrivals · Mayor Square - NCI</h2>
-      <div class="utility-controls">
-        <span class="timestamp" id="lastUpdated">Last checked: —</span>
-        <span class="timestamp countdown" id="countdown">20s</span>
-        <button class="refresh-btn" id="refreshBtn" type="button" aria-label="Verify latest tram forecasts">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2"/><path d="M20 20v-4h-4"/></svg>
+    <!-- Utility Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mt-7 mb-5">
+      <div class="flex items-center gap-3">
+        <span id="boardLineAccent" class="w-1.5 h-7 rounded-full bg-luas-red"></span>
+        <h2 id="boardTitle" class="text-xl sm:text-2xl font-extrabold tracking-tight text-royal-navy">
+          Live arrivals · Mayor Square - NCI
+        </h2>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <span id="lastUpdated" class="text-xs font-semibold text-slate-500">Last checked: —</span>
+        <span id="countdown" class="text-xs font-extrabold tabular-nums text-royal-goldDark bg-royal-goldSoft border border-royal-goldLight px-2.5 py-1 rounded-lg">20s</span>
+        <button
+          id="refreshBtn"
+          type="button"
+          aria-label="Verify latest tram forecasts"
+          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-royal-goldSoft hover:border-royal-gold/60 border border-royal-silver shadow-sm text-xs font-bold text-royal-navy transition disabled:opacity-60 disabled:cursor-wait"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#947228" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 11a8 8 0 0 0-14-5L4 8"/>
+            <path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2"/>
+            <path d="M20 20v-4h-4"/>
+          </svg>
           <span id="refreshLabel">Verify now</span>
         </button>
       </div>
     </div>
 
-    <div id="errorBox" class="error-box hidden" role="alert" aria-live="assertive"></div>
-    <div class="dashboard-grid">
-      <section class="board" aria-label="Live tram departures">
-        <div id="directionCards" aria-live="polite" aria-atomic="true">
-          <div class="arrival-card"><div class="direction-header"><span class="direction-title">Loading live trams…</span></div><div class="arrivals-list"><div class="empty-arrivals">Connecting to the Luas forecast feed.</div></div></div>
+    <!-- Error Alert Banner -->
+    <div id="errorBox" class="hidden mb-5 rounded-2xl border border-red-200 bg-red-50 text-red-900 px-5 py-4 text-sm leading-relaxed whitespace-pre-line font-medium" role="alert" aria-live="assertive"></div>
+
+    <!-- Main Dashboard Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Left Column: Live Departure Board -->
+      <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0" aria-label="Live tram departures">
+        <!-- Collapsible Walking Directions & Interactive Map Card -->
+        <div id="directionsCard" class="hidden bg-white rounded-2xl border border-royal-silver shadow-md shadow-slate-900/[0.04] overflow-hidden" aria-label="Walking directions to selected Luas stop">
+          <div class="h-1 w-full bg-gradient-to-r from-royal-goldDark via-royal-gold to-royal-goldLight"></div>
+          <div class="px-5 sm:px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-white to-royal-goldSoft/60">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-9 h-9 rounded-xl bg-royal-goldSoft border border-royal-goldLight text-royal-goldDark grid place-items-center flex-none" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <h3 id="directionsTitle" class="font-extrabold text-sm sm:text-base text-royal-navy truncate">Walking directions</h3>
+                <p id="directionsSummary" class="text-xs font-semibold text-slate-500 mt-0.5">Finding your location…</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <a
+                id="googleMapsLink"
+                href="https://www.google.com/maps"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-royal-goldDark to-royal-gold hover:brightness-105 text-white text-xs font-bold shadow-sm transition"
+              >
+                <span>Open in Google Maps ↗</span>
+              </a>
+              <button
+                id="closeDirectionsBtn"
+                type="button"
+                aria-label="Close directions panel"
+                class="w-8 h-8 rounded-xl bg-white hover:bg-slate-100 border border-royal-silver text-slate-500 grid place-items-center transition"
+              >✕</button>
+            </div>
+          </div>
+
+          <!-- Interactive Map Container -->
+          <div id="directionsMap" class="w-full h-64 sm:h-72 bg-royal-silverLight relative"></div>
+
+          <!-- Turn-by-Turn Walking Steps -->
+          <div class="px-5 sm:px-6 py-4 border-t border-slate-100 bg-white">
+            <div class="flex items-center justify-between gap-2 mb-2.5">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Turn-by-turn walking route</span>
+              <button id="refreshDirectionsBtn" type="button" class="text-xs font-bold text-royal-goldDark hover:underline">Recenter &amp; update</button>
+            </div>
+            <ol id="directionsSteps" class="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs sm:text-sm text-slate-700"></ol>
+          </div>
         </div>
-        <div class="service-card" id="serviceCard">
-          <span class="service-icon" aria-hidden="true">✓</span>
-          <div><h3 id="serviceTitle">Service information</h3><p id="serviceMessage">Checking the latest service message…</p></div>
+
+        <div id="directionCards" class="flex flex-col gap-4" aria-live="polite" aria-atomic="true">
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <span class="font-bold text-slate-800">Loading live trams…</span>
+            </div>
+            <div class="px-6 py-8 text-sm text-slate-500">
+              Connecting to the Luas forecast feed.
+            </div>
+          </div>
         </div>
-        <div class="source-info" id="feedInfo">Forecasts are estimates, not a guarantee of arrival. Data is requested every 20 seconds.</div>
+
+        <!-- Service Status Notice Card -->
+        <div id="serviceCard" class="flex items-start gap-3.5 p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 transition-colors">
+          <span id="serviceIcon" class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 font-bold grid place-items-center flex-none" aria-hidden="true">✓</span>
+          <div class="min-w-0">
+            <h3 id="serviceTitle" class="text-sm font-extrabold text-emerald-900 mb-1">Service information</h3>
+            <p id="serviceMessage" class="text-sm text-emerald-800/90 leading-relaxed">Checking the latest service message…</p>
+          </div>
+        </div>
+
+        <p id="feedInfo" class="text-xs text-slate-500 px-1 leading-relaxed">
+          Forecasts are estimates, not a guarantee of arrival. Data is requested every 20 seconds.
+        </p>
       </section>
 
-      <aside class="chat-card" aria-label="Ask myLUAS chat assistant">
-        <div class="chat-top">
-          <span class="bot-avatar" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="14" rx="5"/><path d="M8 22l2-4h4l2 4M8.5 10h.01m7 0h.01M9 14h6"/></svg></span>
-          <div class="chat-heading"><strong>Ask myLUAS <span aria-hidden="true">✦</span></strong><small>Live-data assistant · no sign-in needed</small></div>
-          <button class="chat-clear" id="clearChatBtn" type="button" aria-label="Clear conversation" title="Clear conversation"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0-1 15H6L5 6m3 0V4h8v2m-6 4v7m4-7v7"/></svg></button>
-        </div>
-        <div class="chat-messages" id="messages" role="log" aria-live="polite" aria-label="Chat messages"></div>
-        <div class="chat-bottom">
-          <div class="suggestion-title">Try asking</div>
-          <div class="suggestions" id="suggestions">
-            <button class="chip" type="button" data-question="When is the next tram?">Next tram?</button>
-            <button class="chip" type="button" data-question="Are services running normally?">Service status</button>
-            <button class="chip" type="button" data-question="Next tram to The Point from Mayor Square">To The Point</button>
-            <button class="chip" type="button" data-question="Compare Mayor Square and Connolly">Compare stops</button>
+      <!-- Right Column: Ask myLUAS Chat Assistant -->
+      <aside class="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl border border-royal-silver shadow-lg shadow-slate-900/[0.04] overflow-hidden flex flex-col min-h-[580px]" aria-label="Ask myLUAS chat assistant">
+        <!-- Chat Header (Royal White, Silver & Gold Crest) -->
+        <div class="px-5 py-4 bg-gradient-to-r from-white via-royal-silverLight to-royal-goldSoft border-t-[3px] border-t-royal-gold border-b border-b-royal-silver/80 flex items-center gap-3">
+          <span class="w-11 h-11 rounded-2xl bg-gradient-to-br from-royal-goldDark to-royal-gold text-white shadow-sm shadow-royal-gold/30 grid place-items-center flex-none" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="4" width="16" height="14" rx="5"/>
+              <path d="M8 22l2-4h4l2 4M8.5 10h.01m7 0h.01M9 14h6"/>
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <strong class="block text-sm font-extrabold tracking-tight text-royal-navy">Ask myLUAS <span class="text-royal-gold" aria-hidden="true">✦</span></strong>
+            <small class="block text-[11px] text-slate-500 mt-0.5 font-medium">Live-data assistant · no sign-in needed</small>
           </div>
-          <form class="chat-form" id="chatForm">
+          <button
+            id="clearChatBtn"
+            type="button"
+            aria-label="Clear conversation"
+            title="Clear conversation"
+            class="w-9 h-9 rounded-xl bg-white hover:bg-royal-goldSoft border border-royal-silver text-slate-500 hover:text-royal-goldDark grid place-items-center transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18m-2 0-1 15H6L5 6m3 0V4h8v2m-6 4v7m4-7v7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Chat Messages Log -->
+        <div id="messages" class="flex-1 p-5 min-h-[260px] max-h-[400px] overflow-y-auto flex flex-col gap-3.5 bg-royal-silverLight/60" role="log" aria-live="polite" aria-label="Chat messages"></div>
+
+        <!-- Suggestions & Input -->
+        <div class="p-4 border-t border-royal-silver/70 bg-white">
+          <div class="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400 mb-2.5">Try asking</div>
+          <div id="suggestions" class="flex flex-wrap gap-1.5 mb-3.5">
+            <button class="chip text-xs font-semibold px-3 py-1.5 rounded-full border border-royal-silver bg-royal-silverLight/60 hover:bg-royal-goldSoft hover:border-royal-gold hover:text-royal-goldDark text-slate-700 transition" type="button" data-question="When is the next tram?">Next tram?</button>
+            <button class="chip text-xs font-semibold px-3 py-1.5 rounded-full border border-royal-silver bg-royal-silverLight/60 hover:bg-royal-goldSoft hover:border-royal-gold hover:text-royal-goldDark text-slate-700 transition" type="button" data-question="Are services running normally?">Service status</button>
+            <button class="chip text-xs font-semibold px-3 py-1.5 rounded-full border border-royal-silver bg-royal-silverLight/60 hover:bg-royal-goldSoft hover:border-royal-gold hover:text-royal-goldDark text-slate-700 transition" type="button" data-question="Directions to Mayor Square">Directions</button>
+            <button class="chip text-xs font-semibold px-3 py-1.5 rounded-full border border-royal-silver bg-royal-silverLight/60 hover:bg-royal-goldSoft hover:border-royal-gold hover:text-royal-goldDark text-slate-700 transition" type="button" data-question="Compare Mayor Square and Connolly">Compare stops</button>
+          </div>
+
+          <form id="chatForm" class="flex items-center gap-2 p-1.5 rounded-2xl border border-royal-silver focus-within:border-royal-gold focus-within:ring-2 focus-within:ring-royal-gold/20 bg-white transition">
             <label class="sr-only" for="chatInput">Ask a tram question</label>
-            <input id="chatInput" class="chat-input" type="text" placeholder="Ask about a tram or stop…" autocomplete="off" maxlength="350" required>
-            <button class="chat-send" id="chatSend" type="submit" aria-label="Send message"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-8-4 16-3.5-6.5L5 12Zm6.5 1.5L19 4"/></svg></button>
+            <input
+              id="chatInput"
+              type="text"
+              placeholder="Ask about a tram or stop…"
+              autocomplete="off"
+              maxlength="350"
+              required
+              class="flex-1 min-w-0 bg-transparent px-3 py-2 text-sm text-royal-navy placeholder:text-slate-400 focus:outline-none"
+            />
+            <button
+              id="chatSend"
+              type="submit"
+              aria-label="Send message"
+              class="w-10 h-10 rounded-xl bg-gradient-to-br from-royal-goldDark to-royal-gold hover:brightness-105 text-white shadow-sm shadow-royal-gold/25 grid place-items-center flex-none transition disabled:opacity-50"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 12 14-8-4 16-3.5-6.5L5 12Zm6.5 1.5L19 4"/>
+              </svg>
+            </button>
           </form>
-          <div class="chat-note">Answers use fresh API checks, not guesswork. Not an official Luas app.</div>
+          <p class="text-[11px] text-slate-400 text-center mt-2.5">
+            Answers use fresh API checks, not guesswork. Not an official Luas app.
+          </p>
         </div>
       </aside>
     </div>
   </main>
 
-  <footer>
-    <div class="shell footer-content">
+  <!-- Footer -->
+  <footer class="border-t border-royal-silver bg-white mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
       <span>Data: Transport Infrastructure Ireland. Built by Peter Aluko for BDAIB.</span>
-      <span><a href="https://www.luas.ie/real-time-stop/" target="_blank" rel="noopener noreferrer">Check official Luas times ↗</a> · Independent student project</span>
+      <span>
+        <a href="https://www.luas.ie/real-time-stop/" target="_blank" rel="noopener noreferrer" class="font-bold text-royal-goldDark hover:underline underline-offset-4">
+          Check official Luas times ↗
+        </a> · Independent student project
+      </span>
     </div>
   </footer>
 
   <script>
   'use strict';
-  // Single-file app. Only the public TII-backed relay endpoints are used; no API keys or AI services.
+  // Single-file app. Only the public TII-backed relay endpoints and free OpenStreetMap/OSRM routing are used; no API keys required.
   const API = 'https://myluas-live-feed.fit-coin-8703.chatgpt.site';
   const REFRESH_MS = 20000;
   const FETCH_TIMEOUT_MS = 12000;
   const DEFAULT_STOP = 'MYS';
   const STORE_KEY = 'myluas-selected-stop-v1';
-  const $ = id => document.getElementById(id);
-  const state = {
-    stops: [], stopId: DEFAULT_STOP, forecast: null, lastChecked: null,
-    lastProviderStamp: '', previousProviderStamp: '', relayEnds: null,
-    nextRefresh: Date.now() + REFRESH_MS, pollBusy: false, chatBusy: false,
-    boardSequence: 0, chatContext: {stopId: null, direction: null},
-    failed: false, queuedRefresh: false, previousForecast: null, previousChecked: null, errors: {}
+
+  // Fallback coordinates for major Dublin stops in case /stops omits lat/lon
+  const FALLBACK_COORDS = {
+    // Red Line
+    TPT: [53.3483, -6.2292], SDK: [53.3488, -6.2371], MYS: [53.3492, -6.2433],
+    GDK: [53.3495, -6.2476], CON: [53.3510, -6.2499], BUS: [53.3501, -6.2514],
+    ABB: [53.3486, -6.2582], JER: [53.3477, -6.2653], FOU: [53.3469, -6.2734],
+    SMI: [53.3471, -6.2777], MUS: [53.3479, -6.2867], HEU: [53.3466, -6.2918],
+    JAM: [53.3419, -6.2933], FAT: [53.3384, -6.2925], RIA: [53.3379, -6.2972],
+    SUI: [53.3366, -6.3072], GOL: [53.3359, -6.3135], DRI: [53.3354, -6.3182],
+    BLA: [53.3343, -6.3273], BLU: [53.3293, -6.3338], KYL: [53.3267, -6.3434],
+    RED: [53.3168, -6.3699], KIN: [53.3037, -6.3652], BEL: [53.2993, -6.3749],
+    COO: [53.2935, -6.3844], HOS: [53.2894, -6.3788], TAL: [53.2875, -6.3746],
+    FET: [53.2935, -6.3955], CVN: [53.2909, -6.4068], CIT: [53.2878, -6.4189],
+    FOR: [53.2843, -6.4245], SAG: [53.2847, -6.4378],
+    // Green Line
+    BRO: [53.3704, -6.2977], CAB: [53.3642, -6.2818], PHI: [53.3602, -6.2789],
+    GRA: [53.3573, -6.2775], BRD: [53.3541, -6.2736], DOM: [53.3522, -6.2665],
+    PAR: [53.3531, -6.2603], OUP: [53.3516, -6.2608], OGP: [53.3498, -6.2603],
+    MAR: [53.3492, -6.2577], WES: [53.3463, -6.2591], TRI: [53.3452, -6.2582],
+    DAW: [53.3418, -6.2585], STS: [53.3391, -6.2613], HAR: [53.3336, -6.2627],
+    CHA: [53.3307, -6.2587], RAN: [53.3262, -6.2562], BEE: [53.3208, -6.2547],
+    COW: [53.3165, -6.2534], MIL: [53.3099, -6.2517], WIN: [53.3016, -6.2507],
+    DUN: [53.2924, -6.2451], BAL: [53.2861, -6.2368], KIL: [53.2829, -6.2239],
+    STI: [53.2793, -6.2099], SAN: [53.2776, -6.2046], CEN: [53.2701, -6.2038],
+    LEO: [53.2663, -6.1934], CAR: [53.2540, -6.1699], BRI: [53.2421, -6.1428]
   };
 
-  const htmlEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const normalize = text => String(text ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
-  const timeText = date => new Intl.DateTimeFormat('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Europe/Dublin'}).format(date);
-  const dueText = n => n === 0 ? 'Due' : String(n);
+  const $ = id => document.getElementById(id);
+
+  const state = {
+    stops: [],
+    stopId: DEFAULT_STOP,
+    forecast: null,
+    lastChecked: null,
+    lastProviderStamp: '',
+    previousProviderStamp: '',
+    nextRefresh: Date.now() + REFRESH_MS,
+    pollBusy: false,
+    chatBusy: false,
+    boardSequence: 0,
+    chatContext: { stopId: null, direction: null },
+    failed: false,
+    queuedRefresh: false,
+    previousForecast: null,
+    previousChecked: null,
+    errors: {}
+  };
+
+  // --- Formatting & Validation Helpers ---
+  const htmlEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+
+  const normalize = text => String(text ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  const timeText = date => new Intl.DateTimeFormat('en-IE', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false, timeZone: 'Europe/Dublin'
+  }).format(date);
+
+  const dueText = n => (n === 0 ? 'Due' : String(n));
   const validDue = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
   const getStop = id => state.stops.find(s => s.id === id);
-  const currentName = () => getStop(state.stopId)?.name || (state.forecast?.stopName || 'Mayor Square - NCI');
+  const currentName = () => getStop(state.stopId)?.name || state.forecast?.stopName || 'Mayor Square - NCI';
   const currentLine = () => getStop(state.stopId)?.line || 'red';
 
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    const toRad = d => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // --- Network & Error Helpers ---
   async function fetchJSON(url) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(url, {cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+      const response = await fetch(url, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { Accept: 'application/json' }
+      });
       if (!response.ok) throw new Error('The live feed returned HTTP ' + response.status + '.');
       const body = await response.json();
       if (!body || typeof body !== 'object') throw new Error('The feed returned an invalid response.');
@@ -254,44 +525,94 @@
       if (err.name === 'AbortError') throw new Error('The request took too long. Check your internet connection and try again.');
       if (err instanceof TypeError) throw new Error('Could not connect to the live feed. Check your internet connection or browser permissions.');
       throw err;
-    } finally { clearTimeout(timeout); }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
   function validateForecast(data, id) {
     if (!Array.isArray(data.directions)) throw new Error('The forecast response is missing its direction list.');
-    if (data.stop && String(data.stop).toUpperCase() !== id) throw new Error('The forecast feed returned a different stop than requested.');
+    if (data.stop && String(data.stop).toUpperCase() !== id) {
+      throw new Error('The forecast feed returned a different stop than requested.');
+    }
     return {
       stopName: typeof data.stopName === 'string' ? data.stopName : (getStop(id)?.name || id),
       message: typeof data.message === 'string' ? data.message : 'No service message was provided.',
       created: typeof data.created === 'string' ? data.created : null,
       directions: data.directions.map((dir, i) => ({
-        name: typeof dir?.name === 'string' ? dir.name : 'Direction ' + (i+1),
-        trams: Array.isArray(dir?.trams) ? dir.trams.filter(t => t && validDue(t.due) && typeof t.destination === 'string')
-          .map(t => ({due:t.due,destination:t.destination})).sort((a,b) => a.due-b.due) : []
+        name: typeof dir?.name === 'string' ? dir.name : 'Direction ' + (i + 1),
+        trams: Array.isArray(dir?.trams)
+          ? dir.trams
+              .filter(t => t && validDue(t.due) && typeof t.destination === 'string')
+              .map(t => ({ due: t.due, destination: t.destination }))
+              .sort((a, b) => a.due - b.due)
+          : []
       }))
     };
   }
-  function showError(message, kind='general') { state.errors[kind]=message; displayErrors(); }
-  function hideError(kind) { if (kind) delete state.errors[kind]; else state.errors={}; displayErrors(); }
-  function displayErrors() { const messages=Object.values(state.errors); $('errorBox').textContent=messages.join('\n'); $('errorBox').classList.toggle('hidden',!messages.length); }
 
+  function showError(message, kind = 'general') {
+    state.errors[kind] = message;
+    displayErrors();
+  }
+
+  function hideError(kind) {
+    if (kind) delete state.errors[kind];
+    else state.errors = {};
+    displayErrors();
+  }
+
+  function displayErrors() {
+    const messages = Object.values(state.errors);
+    $('errorBox').textContent = messages.join('\n');
+    $('errorBox').classList.toggle('hidden', !messages.length);
+  }
+
+  // --- Dynamic Red / Green Line Theme Accents ---
+  function applyLineTheme() {
+    const isGreen = currentLine() === 'green';
+    document.body.dataset.line = isGreen ? 'green' : 'red';
+
+    const badge = $('heroLineBadge');
+    const dot = $('heroLineDot');
+    const text = $('heroLineText');
+    const accent = $('boardLineAccent');
+
+    badge.className = isGreen
+      ? 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200'
+      : 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-red-50 text-red-700 border border-red-200';
+    dot.className = isGreen ? 'w-2 h-2 rounded-full bg-luas-green' : 'w-2 h-2 rounded-full bg-luas-red';
+    text.textContent = isGreen ? 'Green Line' : 'Red Line';
+    accent.className = isGreen ? 'w-1.5 h-7 rounded-full bg-luas-green' : 'w-1.5 h-7 rounded-full bg-luas-red';
+  }
+
+  // --- Stops & Departure Board Rendering ---
   async function loadStops() {
     try {
       const data = await fetchJSON(API + '/stops');
       if (!Array.isArray(data.stops) || data.stops.length === 0) throw new Error('No stops were returned.');
-      state.stops = data.stops.filter(s => typeof s.id === 'string' && typeof s.name === 'string' && ['red','green'].includes(s.line));
+      state.stops = data.stops.filter(s => typeof s.id === 'string' && typeof s.name === 'string' && ['red', 'green'].includes(s.line));
       if (!state.stops.length) throw new Error('No valid stop records were returned.');
-      $('stopSelect').replaceChildren();
-      for (const line of ['red','green']) {
-        const group = document.createElement('optgroup'); group.label = line === 'red' ? 'Red Line' : 'Green Line';
+
+      const select = $('stopSelect');
+      select.replaceChildren();
+      for (const line of ['red', 'green']) {
+        const group = document.createElement('optgroup');
+        group.label = line === 'red' ? 'Red Line' : 'Green Line';
         for (const stop of state.stops.filter(s => s.line === line)) {
-          const option = document.createElement('option'); option.value = stop.id; option.textContent = stop.name; group.appendChild(option);
+          const option = document.createElement('option');
+          option.value = stop.id;
+          option.textContent = stop.name;
+          group.appendChild(option);
         }
-        $('stopSelect').appendChild(group);
+        select.appendChild(group);
       }
+
       if (!getStop(state.stopId)) state.stopId = DEFAULT_STOP;
-      $('stopSelect').value = state.stopId;
+      select.value = state.stopId;
       $('retryStopsBtn').hidden = true;
       hideError('stops');
+      applyLineTheme();
       return true;
     } catch (err) {
       $('retryStopsBtn').hidden = false;
@@ -300,295 +621,633 @@
     }
   }
 
-  function cardMarkup(dir, index) {
-    const lineClass = currentLine() === 'green' ? 'green' : '';
-    const entries = dir.trams.slice(0,3);
-    return `<article class="arrival-card" aria-label="${htmlEscape(dir.name)} arrivals">
-      <div class="direction-header"><span class="direction-title"><span class="direction-dot ${lineClass}"></span>${htmlEscape(dir.name)}</span><span class="direction-count">NEXT ${entries.length} TRAMS</span></div>
-      <div class="arrivals-list">${entries.length ? entries.map((t,i) => `<div class="arrival">
-        <div class="arrival-first"><span class="train-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="16" rx="4"/><path d="M5 11h14M9 19l-2 3m8-3 2 3M9 15h.01M15 15h.01"/></svg></span>
-          <span><span class="dest-name">${htmlEscape(t.destination)}</span><span class="dest-helper">Tram ${i+1} · ${htmlEscape(dir.name)}</span></span></div>
-        <span class="due-group"><span class="due-num ${t.due===0?'due-now':''}">${htmlEscape(dueText(t.due))}</span><span class="due-unit">${t.due===0?'arriving':'min'}</span></span>
-      </div>`).join('') : '<div class="empty-arrivals">No upcoming trams listed for this direction right now.</div>'}</div>
+  function cardMarkup(dir) {
+    const isGreen = currentLine() === 'green';
+    const barClass = isGreen ? 'bg-luas-green' : 'bg-luas-red';
+    const dotClass = isGreen ? 'bg-luas-green ring-emerald-500/20' : 'bg-luas-red ring-red-500/20';
+    const entries = dir.trams.slice(0, 3);
+
+    return `<article class="bg-white rounded-2xl border border-royal-silver shadow-sm hover:shadow-md transition-shadow overflow-hidden" aria-label="${htmlEscape(dir.name)} arrivals">
+      <div class="h-1 w-full ${barClass}"></div>
+      <div class="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <span class="flex items-center gap-3 font-extrabold text-base text-royal-navy">
+          <span class="w-2.5 h-2.5 rounded-full ring-4 ${dotClass}"></span>
+          ${htmlEscape(dir.name)}
+        </span>
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-royal-silverLight px-2.5 py-1 rounded-lg whitespace-nowrap">
+          Next ${entries.length} ${entries.length === 1 ? 'tram' : 'trams'}
+        </span>
+      </div>
+      <div class="divide-y divide-slate-100 px-5 sm:px-6">
+        ${entries.length
+          ? entries.map((t, i) => `
+            <div class="py-4 flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <span class="w-10 h-10 rounded-xl bg-royal-goldSoft border border-royal-goldLight/80 text-royal-goldDark grid place-items-center flex-none" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="3" width="14" height="16" rx="4"/>
+                    <path d="M5 11h14M9 19l-2 3m8-3 2 3M9 15h.01M15 15h.01"/>
+                  </svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block font-extrabold text-sm sm:text-base text-royal-navy truncate">${htmlEscape(t.destination)}</span>
+                  <span class="block text-xs font-semibold text-slate-400 mt-0.5">Tram ${i + 1} · ${htmlEscape(dir.name)}</span>
+                </span>
+              </div>
+              <div class="text-right flex-none">
+                <span class="block font-extrabold tabular-nums leading-none ${t.due === 0 ? 'text-xl text-emerald-600' : 'text-3xl text-royal-navy tracking-tight'}">${htmlEscape(dueText(t.due))}</span>
+                <span class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">${t.due === 0 ? 'arriving' : 'min'}</span>
+              </div>
+            </div>`).join('')
+          : '<div class="py-7 text-sm text-slate-500">No upcoming trams listed for this direction right now.</div>'}
+      </div>
     </article>`;
   }
+
   function renderBoard() {
     const data = state.forecast;
     $('boardTitle').textContent = 'Live arrivals · ' + currentName();
+    applyLineTheme();
+
+    const serviceCard = $('serviceCard');
+    const serviceIcon = $('serviceIcon');
+    const serviceTitle = $('serviceTitle');
+    const serviceMessage = $('serviceMessage');
+
     if (!data) {
-      $('directionCards').innerHTML = '<div class="arrival-card"><div class="direction-header"><span class="direction-title">Waiting for live data</span></div><div class="arrivals-list"><div class="empty-arrivals">No verified forecast is available for this stop yet. Use “Verify now” to retry.</div></div></div>';
-      $('serviceTitle').textContent = 'Service information unavailable';
-      $('serviceCard').querySelector('.service-icon').textContent = '!';
-      $('serviceMessage').textContent = 'No live service message has been received.';
-      $('serviceCard').classList.add('warning');
+      $('directionCards').innerHTML = `
+        <div class="bg-white rounded-2xl border border-royal-silver shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 font-bold text-royal-navy">Waiting for live data</div>
+          <div class="px-6 py-7 text-sm text-slate-500">No verified forecast is available for this stop yet. Use “Verify now” to retry.</div>
+        </div>`;
+      serviceCard.className = 'flex items-start gap-3.5 p-5 rounded-2xl bg-amber-50 border border-amber-200/90 transition-colors';
+      serviceIcon.className = 'w-9 h-9 rounded-xl bg-amber-100 text-amber-800 font-bold grid place-items-center flex-none';
+      serviceIcon.textContent = '!';
+      serviceTitle.className = 'text-sm font-extrabold text-amber-900 mb-1';
+      serviceTitle.textContent = 'Service information unavailable';
+      serviceMessage.className = 'text-sm text-amber-800/90 leading-relaxed';
+      serviceMessage.textContent = 'No live service message has been received.';
       $('lastUpdated').textContent = 'Last checked: —';
       $('feedInfo').textContent = 'Forecasts are estimates, not a guarantee of arrival. Data is requested every 20 seconds.';
       return;
     }
-    $('directionCards').innerHTML = data.directions.length ? data.directions.map(cardMarkup).join('') : '<div class="arrival-card"><div class="arrivals-list"><div class="empty-arrivals">This forecast currently contains no directions.</div></div></div>';
+
+    $('directionCards').innerHTML = data.directions.length
+      ? data.directions.map(cardMarkup).join('')
+      : '<div class="bg-white rounded-2xl border border-royal-silver p-6 text-sm text-slate-500">This forecast currently contains no directions.</div>';
+
     const status = data.message.trim();
-    const normal = /\b(normal|normally|good service)\b/i.test(status) && !/\b(not|disruption|delay|suspend|cancel)\b/i.test(status);
-    $('serviceCard').classList.toggle('warning',!normal);
-    $('serviceCard').querySelector('.service-icon').textContent = normal ? '✓' : '!';
-    $('serviceTitle').textContent = normal ? 'Service running normally' : 'Latest service notice';
-    $('serviceMessage').textContent = status || 'No service message provided.';
+    const normal = /\b(normal|normally|good service)\b/i.test(status) &&
+      !/\b(not|no service|disruption|delay|suspend|cancel|outage|closed|divert)\b/i.test(status);
+
+    serviceCard.className = normal
+      ? 'flex items-start gap-3.5 p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 transition-colors'
+      : 'flex items-start gap-3.5 p-5 rounded-2xl bg-amber-50 border border-amber-200/90 transition-colors';
+    serviceIcon.className = normal
+      ? 'w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 font-bold grid place-items-center flex-none'
+      : 'w-9 h-9 rounded-xl bg-amber-100 text-amber-800 font-bold grid place-items-center flex-none';
+    serviceIcon.textContent = normal ? '✓' : '!';
+    serviceTitle.className = normal ? 'text-sm font-extrabold text-emerald-900 mb-1' : 'text-sm font-extrabold text-amber-900 mb-1';
+    serviceTitle.textContent = normal ? 'Service running normally' : 'Latest service notice';
+    serviceMessage.className = normal ? 'text-sm text-emerald-800/90 leading-relaxed' : 'text-sm text-amber-800/90 leading-relaxed';
+    serviceMessage.textContent = status || 'No service message provided.';
+
     $('lastUpdated').textContent = state.lastChecked ? 'Checked ' + timeText(state.lastChecked) : 'Last checked: —';
-    const stamp = data.created ? 'Source timestamp: ' + data.created.replace('T',' ') + ' (timezone unspecified). ' : 'No source timestamp provided. ';
+    const stamp = data.created
+      ? 'Source timestamp: ' + data.created.replace('T', ' ') + '. '
+      : 'No source timestamp provided. ';
     $('feedInfo').textContent = stamp + 'Forecasts are estimates; a new fetch does not guarantee new source data.';
   }
+
   function setConnectionUI() {
-    const age = state.lastChecked ? Date.now()-state.lastChecked.getTime() : Infinity;
+    const age = state.lastChecked ? Date.now() - state.lastChecked.getTime() : Infinity;
     const active = !!state.forecast && !state.failed && age < 65000;
-    $('livePulse').classList.toggle('off',!active);
-    $('liveText').textContent = active ? 'LIVE FEED' : state.failed ? 'FEED ERROR' : state.forecast ? 'STALE DATA' : 'CONNECTING';
-    $('countdown').textContent = Math.max(0,Math.ceil((state.nextRefresh-Date.now())/1000)) + 's';
+    const pulse = $('livePulse');
+    const tag = $('liveTag');
+
+    if (active) {
+      tag.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide whitespace-nowrap';
+      pulse.className = 'w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 flex-none';
+      $('liveText').textContent = 'LIVE FEED';
+    } else if (state.failed) {
+      tag.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-red-200 bg-red-50 text-red-800 text-xs font-bold tracking-wide whitespace-nowrap';
+      pulse.className = 'w-2 h-2 rounded-full bg-red-500 ring-4 ring-red-500/20 flex-none';
+      $('liveText').textContent = 'FEED ERROR';
+    } else {
+      tag.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold tracking-wide whitespace-nowrap';
+      pulse.className = 'w-2 h-2 rounded-full bg-amber-500 ring-4 ring-amber-500/20 flex-none';
+      $('liveText').textContent = state.forecast ? 'STALE DATA' : 'CONNECTING';
+    }
+
+    $('countdown').textContent = Math.max(0, Math.ceil((state.nextRefresh - Date.now()) / 1000)) + 's';
     $('clock').textContent = 'DUBLIN ' + timeText(new Date());
   }
+
+  // --- Polling & Stop Selection ---
   async function getForecast(id, updateSelected = true) {
     const sequence = id === state.stopId && updateSelected ? ++state.boardSequence : null;
     const raw = await fetchJSON(API + '/forecast?stop=' + encodeURIComponent(id));
-    const data = validateForecast(raw,id);
+    const data = validateForecast(raw, id);
     const checkedAt = new Date();
     if (updateSelected && id === state.stopId && sequence === state.boardSequence) {
       state.previousForecast = state.forecast;
       state.previousChecked = state.lastChecked;
       state.previousProviderStamp = state.lastProviderStamp;
       state.lastProviderStamp = data.created || '';
-      state.forecast = data; state.lastChecked = checkedAt; state.failed = false;
+      state.forecast = data;
+      state.lastChecked = checkedAt;
+      state.failed = false;
       state.nextRefresh = Date.now() + REFRESH_MS;
-      hideError('forecast'); renderBoard(); setConnectionUI();
+      hideError('forecast');
+      renderBoard();
+      setConnectionUI();
     }
-    return {data, checkedAt};
+    return { data, checkedAt };
   }
-  async function refreshSelected(manual=false) {
-    if (state.pollBusy) { if (manual) state.queuedRefresh = true; return null; }
+
+  async function refreshSelected(manual = false) {
+    if (state.pollBusy) {
+      if (manual) state.queuedRefresh = true;
+      return null;
+    }
     state.pollBusy = true;
-    $('refreshBtn').disabled = true; $('refreshLabel').textContent = 'Checking…';
+    $('refreshBtn').disabled = true;
+    $('refreshLabel').textContent = 'Checking…';
     const id = state.stopId;
-    try { return await getForecast(id); }
-    catch (err) {
+    try {
+      return await getForecast(id);
+    } catch (err) {
       if (id === state.stopId) {
+        // Keep last valid forecast visible on transient network drops; warn via banner & badge
         state.failed = true;
-        state.forecast = null;
-        state.lastChecked = null;
         showError('Live departures unavailable: ' + err.message, 'forecast');
-        renderBoard(); setConnectionUI();
+        renderBoard();
+        setConnectionUI();
       }
       return null;
     } finally {
       state.pollBusy = false;
-      state.nextRefresh = Date.now()+REFRESH_MS;
-      $('refreshBtn').disabled = false; $('refreshLabel').textContent = 'Verify now';
+      state.nextRefresh = Date.now() + REFRESH_MS;
+      $('refreshBtn').disabled = false;
+      $('refreshLabel').textContent = 'Verify now';
       setConnectionUI();
-      if (state.queuedRefresh) {state.queuedRefresh=false; refreshSelected(true);}
+      if (state.queuedRefresh) {
+        state.queuedRefresh = false;
+        refreshSelected(true);
+      }
     }
   }
+
   function chooseStop(id) {
     if (!getStop(id) && state.stops.length) return;
-    state.stopId = id; state.forecast = null; state.lastChecked = null; state.failed = false;
-    state.lastProviderStamp = ''; state.previousProviderStamp = ''; state.boardSequence++;
-    state.previousForecast = null; state.previousChecked = null;
-    $('stopSelect').value = id; state.chatContext = {stopId:id,direction:null};
-    try { localStorage.setItem(STORE_KEY,id); } catch (_) { /* Browser storage can be blocked. */ }
-    hideError('forecast'); renderBoard(); setConnectionUI(); refreshSelected(true);
+    state.stopId = id;
+    state.forecast = null;
+    state.lastChecked = null;
+    state.failed = false;
+    state.lastProviderStamp = '';
+    state.previousProviderStamp = '';
+    state.boardSequence++;
+    state.previousForecast = null;
+    state.previousChecked = null;
+    $('stopSelect').value = id;
+    state.chatContext = { stopId: id, direction: null };
+    try { localStorage.setItem(STORE_KEY, id); } catch (_) { /* Browser storage can be blocked. */ }
+    hideError('forecast');
+    renderBoard();
+    setConnectionUI();
+    refreshSelected(true);
+    // Keep walking directions synced if the map panel is currently open
+    if (!$('directionsCard').classList.contains('hidden')) {
+      openDirections(id);
+    }
   }
 
+  // --- Interactive Walking Directions (Leaflet + OSRM Foot Routing + Google Maps Link) ---
+  const mapState = {
+    map: null,
+    routeLayer: null,
+    userMarker: null,
+    stopMarker: null,
+    userCoords: null
+  };
+
+  function getStopCoords(id) {
+    const stop = getStop(id);
+    const lat = stop?.lat ?? stop?.latitude ?? FALLBACK_COORDS[id]?.[0];
+    const lon = stop?.lon ?? stop?.lng ?? stop?.longitude ?? FALLBACK_COORDS[id]?.[1];
+    return (typeof lat === 'number' && typeof lon === 'number') ? [lat, lon] : null;
+  }
+
+  function formatDistance(meters) {
+    return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m';
+  }
+
+  function formatStepInstruction(step) {
+    const type = step.maneuver?.type || 'continue';
+    const mod = step.maneuver?.modifier ? step.maneuver.modifier.replace(/_/g, ' ') : '';
+    const road = step.name ? ' onto ' + step.name : '';
+    if (type === 'depart') return `Head ${mod || 'forward'}${road}`;
+    if (type === 'arrive') return `Arrive at ${currentName()} Luas stop`;
+    if (type === 'roundabout' || type === 'rotary') return `Take the roundabout${road}`;
+    if (type === 'turn' || type === 'end of road' || type === 'fork') {
+      return `Turn ${mod || 'ahead'}${road}`;
+    }
+    return `Continue ${mod}${road}`.replace(/\s+/g, ' ').trim();
+  }
+
+  function initDirectionsMap(center) {
+    if (!window.L) return null;
+    if (!mapState.map) {
+      mapState.map = L.map('directionsMap', { zoomControl: true }).setView(center, 15);
+      // Clean silver-white CartoDB Positron basemap matching the Royal White/Silver/Gold theme
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        maxZoom: 19
+      }).addTo(mapState.map);
+    }
+    setTimeout(() => mapState.map && mapState.map.invalidateSize(), 120);
+    return mapState.map;
+  }
+
+  function renderMapMarkers(userLatLng, stopLatLng, routeGeoJson) {
+    const map = initDirectionsMap(stopLatLng);
+    if (!map) return;
+
+    if (mapState.routeLayer) map.removeLayer(mapState.routeLayer);
+    if (mapState.userMarker) map.removeLayer(mapState.userMarker);
+    if (mapState.stopMarker) map.removeLayer(mapState.stopMarker);
+
+    const userIcon = L.divIcon({
+      className: '',
+      html: '<div style="width:16px;height:16px;border-radius:9999px;background:#2563EB;border:3px solid #FFFFFF;box-shadow:0 2px 8px rgba(37,99,235,0.5);"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+
+    const lineHex = currentLine() === 'green' ? '#00875A' : '#D9383A';
+    const stopIcon = L.divIcon({
+      className: '',
+      html: `<div style="width:22px;height:22px;border-radius:9999px;background:${lineHex};border:3px solid #FFFFFF;box-shadow:0 3px 10px rgba(0,0,0,0.3);display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;">L</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
+
+    mapState.userMarker = L.marker(userLatLng, { icon: userIcon }).addTo(map).bindPopup('Your location');
+    mapState.stopMarker = L.marker(stopLatLng, { icon: stopIcon }).addTo(map).bindPopup(`<strong>${htmlEscape(currentName())}</strong><br>Luas Stop`);
+
+    if (routeGeoJson) {
+      mapState.routeLayer = L.geoJSON(routeGeoJson, {
+        style: { color: '#947228', weight: 5, opacity: 0.92 }
+      }).addTo(map);
+      map.fitBounds(mapState.routeLayer.getBounds(), { padding: [36, 36] });
+    } else {
+      mapState.routeLayer = L.polyline([userLatLng, stopLatLng], {
+        color: '#C5A059', weight: 4, dashArray: '8, 8', opacity: 0.9
+      }).addTo(map);
+      map.fitBounds(L.latLngBounds([userLatLng, stopLatLng]), { padding: [40, 40] });
+    }
+  }
+
+  async function openDirections(targetId = state.stopId) {
+    const card = $('directionsCard');
+    const title = $('directionsTitle');
+    const summary = $('directionsSummary');
+    const stepsEl = $('directionsSteps');
+    const gmapsLink = $('googleMapsLink');
+    const stopName = getStop(targetId)?.name || currentName();
+    const stopCoords = getStopCoords(targetId);
+
+    card.classList.remove('hidden');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    title.textContent = 'Walk to ' + stopName;
+    summary.textContent = 'Getting your live GPS location…';
+    stepsEl.innerHTML = '<li class="text-slate-400">Calculating walking route…</li>';
+
+    if (stopCoords) {
+      gmapsLink.href = `https://www.google.com/maps/dir/?api=1&destination=${stopCoords[0]},${stopCoords[1]}&travelmode=walking`;
+    } else {
+      gmapsLink.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stopName + ' Luas Stop, Dublin')}&travelmode=walking`;
+    }
+
+    if (!navigator.geolocation) {
+      summary.textContent = 'Geolocation is unavailable in this browser. Use Google Maps above.';
+      stepsEl.innerHTML = '<li class="text-slate-500">Tap “Open in Google Maps” for turn-by-turn navigation.</li>';
+      if (stopCoords) initDirectionsMap(stopCoords);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const userCoords = [pos.coords.latitude, pos.coords.longitude];
+        mapState.userCoords = userCoords;
+
+        if (!stopCoords) {
+          summary.textContent = 'Stop coordinates unavailable locally. Use Google Maps for navigation.';
+          stepsEl.innerHTML = '<li class="text-slate-500">Tap “Open in Google Maps” for turn-by-turn directions to this stop.</li>';
+          initDirectionsMap(userCoords);
+          return;
+        }
+
+        try {
+          // OSRM public foot routing API (free, no API key required)
+          const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${userCoords[1]},${userCoords[0]};${stopCoords[1]},${stopCoords[0]}?overview=full&geometries=geojson&steps=true`;
+          const routeData = await fetchJSON(osrmUrl);
+          const route = routeData?.routes?.[0];
+          if (!route) throw new Error('No walking route found.');
+
+          const walkMins = Math.max(1, Math.round(route.duration / 60));
+          const distLabel = formatDistance(route.distance);
+          summary.textContent = `${walkMins} min walk · ${distLabel} to ${stopName}`;
+
+          renderMapMarkers(userCoords, stopCoords, route.geometry);
+
+          const rawSteps = route.legs?.[0]?.steps || [];
+          stepsEl.innerHTML = rawSteps.length
+            ? rawSteps.map((s, idx) => `
+                <li class="flex items-start justify-between gap-3 py-1.5 border-b border-slate-100 last:border-none">
+                  <span class="flex items-start gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-royal-goldSoft border border-royal-goldLight text-royal-goldDark text-[10px] font-extrabold grid place-items-center flex-none mt-0.5">${idx + 1}</span>
+                    <span class="font-medium text-royal-navy">${htmlEscape(formatStepInstruction(s))}</span>
+                  </span>
+                  <span class="text-[11px] font-bold text-slate-400 whitespace-nowrap tabular-nums">${s.distance > 0 ? formatDistance(s.distance) : ''}</span>
+                </li>
+              `).join('')
+            : '<li class="text-slate-500">Follow the highlighted gold path on the map to the stop.</li>';
+        } catch (_) {
+          // Graceful fallback if OSRM is unreachable: straight-line estimate + dashed path
+          const km = haversineKm(userCoords[0], userCoords[1], stopCoords[0], stopCoords[1]);
+          const estMins = Math.max(1, Math.round((km / 4.8) * 60));
+          summary.textContent = `~${estMins} min walk (${formatDistance(km * 1000)} direct) · Tap Google Maps for live turn-by-turn`;
+          renderMapMarkers(userCoords, stopCoords, null);
+          stepsEl.innerHTML = '<li class="text-slate-500">Live street routing is temporarily busy. Follow the dashed guide on the map or tap “Open in Google Maps”.</li>';
+        }
+      },
+      err => {
+        summary.textContent = 'Location permission needed: ' + (err.message || 'Enable GPS to see your route.');
+        stepsEl.innerHTML = '<li class="text-slate-500">Allow location access and click “Recenter &amp; update”, or tap “Open in Google Maps”.</li>';
+        if (stopCoords) {
+          const map = initDirectionsMap(stopCoords);
+          if (map) {
+            if (mapState.stopMarker) map.removeLayer(mapState.stopMarker);
+            mapState.stopMarker = L.marker(stopCoords).addTo(map).bindPopup(`<strong>${htmlEscape(stopName)}</strong>`).openPopup();
+          }
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  }
+
+  // --- Geolocation: Near Me ---
+  function findNearestStop() {
+    if (!navigator.geolocation) {
+      showError('Geolocation is not supported by your browser.', 'geo');
+      return;
+    }
+    const btn = $('nearMeBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>Locating…</span>';
+    hideError('geo');
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        const candidates = state.stops.length
+          ? state.stops
+          : Object.keys(FALLBACK_COORDS).map(id => ({ id, name: id, line: 'red' }));
+
+        let best = null;
+        let bestDist = Infinity;
+        for (const stop of candidates) {
+          const coords = getStopCoords(stop.id);
+          if (!coords) continue;
+          const dist = haversineKm(latitude, longitude, coords[0], coords[1]);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = stop;
+          }
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+
+        if (!best) {
+          showError('Could not determine the nearest Luas stop right now.', 'geo');
+          return;
+        }
+        chooseStop(best.id);
+        appendMessage('bot', `Closest stop found: ${best.name} (${formatDistance(bestDist * 1000)} away). Live arrivals are loading now — tap “Directions” if you need a walking route.`);
+      },
+      err => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        showError('Location unavailable: ' + (err.message || 'Permission denied.'), 'geo');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  }
+
+  // --- Data-Grounded Chat Assistant ---
   function matchStops(question) {
     const q = ' ' + normalize(question) + ' ';
     const found = new Map();
-    const aliases = [ ['nci','MYS'],['mayor square','MYS'],['stephens green','STS'],['st stephens green','STS'],['the point','TPT'],['oconnell gpo','OGP'],['oconnell upper','OUP'] ];
+    const aliases = [
+      ['nci', 'MYS'], ['mayor square', 'MYS'], ['stephens green', 'STS'],
+      ['st stephens green', 'STS'], ['the point', 'TPT'], ['oconnell gpo', 'OGP'],
+      ['oconnell upper', 'OUP'], ['connolly', 'CON'], ['heuston', 'HEU'],
+      ['abbey street', 'ABB'], ['jervis', 'JER'], ['busaras', 'BUS'],
+      ['dundrum', 'DUN'], ['tallaght', 'TAL'], ['saggart', 'SAG'],
+      ['brides glen', 'BRI'], ['broombridge', 'BRO'], ['sandyford', 'SAN'],
+      ['spencer dock', 'SDK'], ['georges dock', 'GDK'], ['trinity', 'TRI'],
+      ['dawson', 'DAW'], ['ranelagh', 'RAN'], ['smithfield', 'SMI']
+    ];
+
+    for (const [alias, id] of aliases) {
+      if (q.includes(' ' + alias + ' ')) {
+        const stop = getStop(id) || { id, name: alias };
+        found.set(id, stop);
+      }
+    }
+
     for (const stop of state.stops) {
-      const name = normalize(stop.name), shortName = name.replace(/\s+(nci|university|gpo|upper)$/,'');
-      const needles = [name]; if (shortName.length >= 5 && shortName !== name) needles.push(shortName);
-      for (const needle of needles) {
-        const idx = q.indexOf(' ' + needle + ' ');
-        if (idx !== -1 && (!found.has(stop.id) || found.get(stop.id).length < needle.length)) found.set(stop.id,{stop,index:idx,length:needle.length});
-      }
-      if (new RegExp('\\b'+stop.id+'\\b','i').test(question) && question.includes(stop.id)) {
-        if (!found.has(stop.id)) found.set(stop.id,{stop,index:q.indexOf(' '+stop.id.toLowerCase()+' '),length:stop.id.length});
+      const normName = normalize(stop.name);
+      if (normName && q.includes(' ' + normName + ' ')) {
+        found.set(stop.id, stop);
       }
     }
-    for (const [alias,id] of aliases) {
-      const idx = q.indexOf(' '+alias+' ');
-      const stop = getStop(id);
-      if (idx >= 0 && stop && !found.has(id)) found.set(id,{stop,index:idx,length:alias.length});
-    }
-    return [...found.values()].sort((a,b) => a.index-b.index || b.length-a.length);
-  }
-  function pickBoardingStop(question, matches) {
-    if (!matches.length) return state.chatContext.stopId || state.stopId;
-    const q = normalize(question);
-    const from = matches.find(m => new RegExp('(?:from|at|for|in|on|near)\\s+$').test(q.slice(0,m.index).trimEnd()+' '));
-    if (from) return from.stop.id;
-    if (matches.length > 1) {
-      const dest = matches.find(m => new RegExp('(?:to|towards|toward|bound for)\\s+$').test(q.slice(0,m.index).trimEnd()+' '));
-      if (dest) return matches.find(m => m.stop.id !== dest.stop.id)?.stop.id || state.stopId;
-      return matches[0].stop.id;
-    }
-    // If phrased as "to Tallaght", keep the current boarding stop.
-    const only = matches[0];
-    if (new RegExp('(?:to|towards|toward|bound for)\\s+$').test(q.slice(0,only.index).trimEnd()+' ')) return state.chatContext.stopId || state.stopId;
-    return only.stop.id;
-  }
-  function directionFor(question, data) {
-    const q = normalize(question);
-    if (/\b(other|opposite) direction\b/.test(q) && state.chatContext.direction) return data.directions.find(d => normalize(d.name)!==normalize(state.chatContext.direction));
-    const match = data.directions.find(d => q.includes(normalize(d.name)));
-    return match || null;
-  }
-  function lineSummary(data, selectedDir=null) {
-    const directions = selectedDir ? [selectedDir] : data.directions;
-    if (!directions.length) return 'The feed has no direction information right now.';
-    return directions.map(d => {
-      const next = d.trams.slice(0,3);
-      return d.name + ': ' + (next.length ? next.map(t => t.destination + ' — ' + (t.due===0?'Due now':t.due+' min')).join('; ') : 'no trams currently listed');
-    }).join('\n');
-  }
-  async function answerQuestion(question) {
-    if (!state.stops.length) return 'I could not load the stop list yet. Press “Retry stops”, then ask again. You can still see the default stop if its forecast loads.';
-    const q = normalize(question);
-    const matches = matchStops(question);
-    const ids = [...new Set(matches.map(m => m.stop.id))];
-    let boardingId = pickBoardingStop(question,matches);
-    const requestedLine = /\bgreen line\b/.test(q) ? 'green' : /\bred line\b/.test(q) ? 'red' : null;
-    if (!ids.length && requestedLine && getStop(boardingId)?.line !== requestedLine) {
-      boardingId = (getStop(requestedLine==='green' ? 'STS' : 'MYS') || state.stops.find(s=>s.line===requestedLine))?.id || boardingId;
-    }
-    const compare = /\b(compare|versus|vs|difference between)\b/.test(q);
-    const explicitSwitch = /\b(switch|select|change|set|show me|use stop)\b/.test(q) && !compare;
-    const help = /^(help|what can you do|how does this work|what can i ask|hi|hello|hey)\b/.test(q);
-    const verify = /\b(verify|refresh|recheck|double check|check again|check now|up to date|real time|latest data)\b/.test(q);
-    const changes = /\b(changed|changes|change since|different since|since last check|anything new)\b/.test(q);
-    const status = /\b(service|disruption|delay|delayed|cancel|suspend|status|running normally|operating normally)\b/.test(q);
-    const timing = /\b(next|when|soonest|arrival|arrive|due|minutes|how long|tram|depart|schedule|times)\b/.test(q);
-    const destinationIntent = /\b(to|towards|toward|bound for)\b/.test(q);
-    const routeIntent = /\b(how do i get|route|journey|change lines|travel to)\b/.test(q);
-    const ageIntent = /\b(last updated|last checked|timestamp|fresh|source time|how old)\b/.test(q);
-    if (help) return 'I can check upcoming trams, compare stops, show service messages and verify the feed again.\n\nTry: “Next tram at Dundrum”, “Trams to Tallaght from Mayor Square”, “Compare Connolly and Heuston”, or “Is the Green Line running normally?”\n\nI work from the live feed, not a general-purpose AI model. I cannot guarantee train arrival times or plan complete journeys.';
-    if (compare) {
-      if (ids.length < 2) return 'Name two stops to compare. For example: “Compare Mayor Square and Connolly”.';
-      const a = getStop(ids[0]), b = getStop(ids[1]);
-      const [one,two] = await Promise.allSettled([getForecast(a.id),getForecast(b.id)]);
-      if (one.status === 'rejected' || two.status === 'rejected') throw new Error('One of the stop forecasts could not be checked. Please try again.');
-      state.chatContext.stopId = a.id; state.chatContext.direction = null;
-      const summary = item => {
-        const upcoming = item.data.directions.flatMap(d => d.trams.map(t => ({...t,direction:d.name}))).sort((x,y)=>x.due-y.due)[0];
-        return upcoming ? `${upcoming.destination} in ${upcoming.due===0?'0 (Due now)':upcoming.due+' min'} (${upcoming.direction})` : 'No trams currently listed';
-      };
-      return `Fresh check (${timeText(new Date())} Dublin time):\n${a.name}: ${summary(one.value)}\n${b.name}: ${summary(two.value)}\n\nThese are the earliest listed trams at each stop, not a journey-time comparison.`;
-    }
-    if (explicitSwitch && ids.length) {
-      chooseStop(ids[0]); state.chatContext.stopId = ids[0]; state.chatContext.direction = null;
-      return `I've selected ${getStop(ids[0]).name} on the ${getStop(ids[0]).line} line. The arrival board is checking its latest forecast now.`;
-    }
-    if (routeIntent) {
-      const destination = matches.find(m => m.stop.id !== boardingId)?.stop || matches[0]?.stop;
-      if (!destination) return 'Tell me where you want to travel from and to. I can identify Luas stops and check their current departures, but this feed does not contain routes, transfers or journey times.';
-      return `${destination.name} is on the ${destination.line === 'red' ? 'Red' : 'Green'} Line. The data provided here only contains stops and forecasts, so I cannot verify a full journey, transfer or travel time. For detailed directions, use the official Luas journey planner: https://www.luas.ie/`;
-    }
-    // Every information question makes an actual new network request.
-    const {data,checkedAt} = await getForecast(boardingId);
-    state.chatContext.stopId = boardingId;
-    const checked = 'Checked at ' + timeText(checkedAt) + ' Dublin time';
-    const provider = data.created ? '; source stamp ' + data.created.replace('T',' ') + ' (timezone unspecified)' : '; no source timestamp supplied';
-    if (changes) {
-      if (boardingId !== state.stopId || !state.previousForecast || !state.previousChecked) return `${checked}. I have only one comparable saved snapshot for this stop. Check again in 20 seconds or press “Verify now”, then ask what changed.`;
-      const before = state.previousForecast;
-      const oldFirst = before.directions.map(d => `${d.name}: ${d.trams.slice(0,3).map(t=>`${t.destination} ${t.due} min`).join(', ')}`).join(' | ');
-      const newFirst = data.directions.map(d => `${d.name}: ${d.trams.slice(0,3).map(t=>`${t.destination} ${t.due} min`).join(', ')}`).join(' | ');
-      const notice = before.message !== data.message ? `Service notice changed from “${before.message}” to “${data.message}”.` : 'Service notice is unchanged.';
-      const changedTimes = oldFirst !== newFirst ? 'The listed arrivals or minutes differ between checks.' : 'The listed first three arrivals match the previous check.';
-      return `Comparing checks at ${timeText(state.previousChecked)} and ${timeText(checkedAt)} (Dublin time):\n${notice}\n${changedTimes}\n\nLatest: ${lineSummary(data)}\n\nMinutes normally decrease as time passes; a difference alone does not prove a delay.`;
-    }
-    if (verify) {
-      const unchanged = boardingId === state.stopId && state.previousProviderStamp && state.previousProviderStamp === state.lastProviderStamp;
-      return `${checked}${provider}.\n\n${data.stopName}:\n${lineSummary(data)}\n\nService notice: ${data.message}\n${unchanged?'The source timestamp has not changed since the previous check.\n':''}This confirms a new request to the TII-backed relay, not an independent verification against the official Luas website.`;
-    }
-    if (ageIntent) return `${checked}${provider}.\nThe dashboard retrieves a new response every 20 seconds. A successful request may still contain unchanged source data.`;
-    if (status) return `${data.stopName}: “${data.message}”\n\n${checked}${provider}. This is the message returned for this stop. It does not independently establish the status of the entire network.`;
-    const direction = directionFor(question,data);
-    if (direction) state.chatContext.direction = direction.name;
-    if (/\b(other|opposite) direction\b/.test(q) && !direction) return 'I could not identify the other direction in this feed. Try asking for “Inbound” or “Outbound”.';
-    // A destination is an actual stop mentioned after "to" / "towards", excluding the boarding stop.
-    const destMatches = matches.filter(m => m.stop.id !== boardingId && /(?:to|towards|toward|bound for)\s+$/.test(q.slice(0,m.index).trimEnd()+' '));
-    const destination = destMatches[0]?.stop || (destinationIntent && ids.length===1 && ids[0]!==boardingId ? getStop(ids[0]) : null);
-    if (destination) {
-      const offerings = data.directions.flatMap(d => d.trams.filter(t => normalize(t.destination) === normalize(destination.name) || normalize(t.destination).includes(normalize(destination.name))).map(t=>({...t,direction:d.name}))).sort((x,y)=>x.due-y.due);
-      if (!offerings.length) return `${checked}. No tram displaying “${destination.name}” as its destination is listed at ${data.stopName} right now. This does not prove the journey is impossible; some trams may continue through that stop without displaying it as their destination.\n\n${lineSummary(data)}`;
-      return `${checked}. Trams displaying ${destination.name} from ${data.stopName}:\n${offerings.slice(0,3).map(t => '• ' + (t.due===0?'Due now':t.due+' min') + ' · ' + t.direction).join('\n')}\n\nTimes are live estimates.`;
-    }
-    if (direction) return `${data.stopName} · ${checked}\n${lineSummary(data,direction)}`;
-    const all = data.directions.flatMap(d => d.trams.map(t => ({...t,direction:d.name}))).sort((a,b)=>a.due-b.due);
-    if (!all.length) return `${checked}. No trams are currently listed at ${data.stopName}. Service notice: ${data.message}`;
-    if (timing && !/\b(all|both|every|three|3)\b/.test(q)) {
-      const soonest = all[0];
-      return `Next at ${data.stopName}: ${soonest.destination} (${soonest.direction}) — ${soonest.due===0?'Due now':soonest.due+' min'}.\n\nOther upcoming trams:\n${all.slice(1,4).map(t=>'• '+t.destination+' · '+t.direction+' · '+(t.due===0?'Due':t.due+' min')).join('\n') || 'None listed.'}\n\n${checked}.`;
-    }
-    return `${data.stopName} · ${checked}\n${lineSummary(data)}\n\nService notice: ${data.message}`;
+
+    return Array.from(found.values());
   }
 
-  function addMessage(text,who='bot') {
-    const item = document.createElement('div');item.className = 'message ' + who;
-    if (who==='bot') {
-      const avatar = document.createElement('span');avatar.className='small-avatar';avatar.textContent='✦';avatar.setAttribute('aria-hidden','true');item.appendChild(avatar);
+  function formatStopSummary(data, destinationFilter = null) {
+    const lines = [`Live arrivals at ${data.stopName}:`];
+    let matchedAny = false;
+
+    for (const dir of data.directions) {
+      let trams = dir.trams;
+      if (destinationFilter) {
+        const normFilter = normalize(destinationFilter);
+        trams = trams.filter(t => normalize(t.destination).includes(normFilter) || normalize(dir.name).includes(normFilter));
+      }
+      if (!trams.length) continue;
+      matchedAny = true;
+      const list = trams.slice(0, 3)
+        .map(t => `${t.destination} (${t.due === 0 ? 'Due' : t.due + ' min'})`)
+        .join(', ');
+      lines.push(`• ${dir.name}: ${list}`);
     }
-    const bubble = document.createElement('div');bubble.className='bubble';bubble.textContent=text;item.appendChild(bubble);
-    $('messages').appendChild(item);$('messages').scrollTop=$('messages').scrollHeight;
-    return item;
-  }
-  async function submitQuestion(question) {
-    const content=question.trim();if (!content || state.chatBusy) return;
-    addMessage(content,'user');$('chatInput').value='';
-    state.chatBusy=true;$('chatSend').disabled=true;
-    const pending=addMessage('Checking live data…');
-    try {
-      const reply=await answerQuestion(content);
-      pending.querySelector('.bubble').textContent=reply;
-    } catch (err) {
-      pending.querySelector('.bubble').textContent='I could not verify that from the live feed: '+err.message+' Please try again. I will not guess at an arrival time.';
-    } finally {
-      state.chatBusy=false;$('chatSend').disabled=false;$('messages').scrollTop=$('messages').scrollHeight;
+
+    if (!matchedAny) {
+      return destinationFilter
+        ? `No upcoming trams matching “${destinationFilter}” are listed at ${data.stopName} right now.`
+        : `No upcoming trams are listed at ${data.stopName} right now.`;
     }
+    return lines.join('\n');
   }
+
+  async function answerQuestion(question) {
+    const q = normalize(question);
+    const matched = matchStops(question);
+
+    // 1. Compare two stops intent
+    if (/\b(compare|versus|vs)\b/.test(q) && matched.length >= 2) {
+      const [first, second] = matched;
+      const [resA, resB] = await Promise.all([
+        getForecast(first.id, first.id === state.stopId),
+        getForecast(second.id, second.id === state.stopId)
+      ]);
+      return formatStopSummary(resA.data) + '\n\n' + formatStopSummary(resB.data);
+    }
+
+    // 2. Destination filter ("to The Point from Mayor Square")
+    let targetStopId = state.stopId;
+    let destinationFilter = null;
+
+    const toFromMatch = question.match(/\b(?:to|towards)\s+([a-z0-9\s'&-]+?)\s+from\s+([a-z0-9\s'&-]+)/i);
+    if (toFromMatch) {
+      destinationFilter = toFromMatch[1].trim();
+      const fromMatches = matchStops(toFromMatch[2]);
+      if (fromMatches.length) targetStopId = fromMatches[0].id;
+    } else if (/\b(?:to|towards)\s+([a-z0-9\s'&-]+)/i.test(question) && !/\b(direction|directions|walk|get|route|map)\b/.test(q)) {
+      const destMatch = question.match(/\b(?:to|towards)\s+([a-z0-9\s'&-]+)/i);
+      if (destMatch) destinationFilter = destMatch[1].replace(/[?.!]+$/, '').trim();
+    } else if (matched.length === 1) {
+      targetStopId = matched[0].id;
+    } else if (state.chatContext.stopId) {
+      targetStopId = state.chatContext.stopId;
+    }
+
+    const { data } = await getForecast(targetStopId, targetStopId === state.stopId);
+    state.chatContext.stopId = targetStopId;
+
+    // 3. Walking directions intent
+    if (/\b(direction|directions|how do i get|walk to|walking|route to|navigate|map to|where is)\b/.test(q)) {
+      if (targetStopId !== state.stopId) chooseStop(targetStopId);
+      openDirections(targetStopId);
+      return `I've opened live walking directions to ${data.stopName} on the map above. You can also tap “Open in Google Maps” for full GPS voice navigation.`;
+    }
+
+    // 4. Service status intent
+    if (/\b(status|normal|delay|disruption|running|working|issue|problem)\b/.test(q)) {
+      return `Service status for ${data.stopName}:\n${data.message}`;
+    }
+
+    // 5. Default: Live arrivals (optionally filtered by destination)
+    return formatStopSummary(data, destinationFilter);
+  }
+
+  function appendMessage(role, text) {
+    const log = $('messages');
+    const row = document.createElement('div');
+    row.className = role === 'user' ? 'flex items-start justify-end gap-2' : 'flex items-start gap-2.5';
+
+    if (role === 'bot') {
+      const avatar = document.createElement('span');
+      avatar.className = 'w-7 h-7 rounded-xl bg-royal-goldSoft border border-royal-goldLight text-royal-goldDark grid place-items-center flex-none text-xs font-extrabold';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.textContent = '✦';
+      row.appendChild(avatar);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = role === 'user'
+      ? 'max-w-[85%] rounded-2xl rounded-tr-sm bg-royal-navy text-white px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-sm'
+      : 'max-w-[88%] rounded-2xl rounded-tl-sm bg-white border border-royal-silver/80 text-royal-navy px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-sm';
+    bubble.textContent = text;
+
+    row.appendChild(bubble);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
   function resetChat() {
-    $('messages').replaceChildren();state.chatContext={stopId:null,direction:null};
-    addMessage('Hi! 👋 I’m your myLUAS travel assistant. Ask me about upcoming trams, stop comparisons or service notices. I check live data when answering, so I won’t make up arrival times.');
+    $('messages').replaceChildren();
+    state.chatContext = { stopId: state.stopId, direction: null };
+    appendMessage('bot', `Hi! Ask me about live tram times, service status, stop comparisons, or walking directions to ${currentName()}.`);
   }
-  function rad(deg){return deg*Math.PI/180}
-  function distanceKm(a,b,c,d){const R=6371,dt=rad(c-a),dn=rad(d-b),x=Math.sin(dt/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dn/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
-  function findNearMe(){
-    hideError('location');
-    if (!state.stops.length) return showError('The stop list must load before nearby stops can be calculated.', 'location');
-    if (!navigator.geolocation) return showError('Your browser does not support location access. Choose a stop from the list instead.', 'location');
-    $('nearMeBtn').disabled=true;
-    navigator.geolocation.getCurrentPosition(pos=>{
-      $('nearMeBtn').disabled=false;
-      const nearby=state.stops.filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng)).map(s=>({s,km:distanceKm(pos.coords.latitude,pos.coords.longitude,s.lat,s.lng)})).sort((a,b)=>a.km-b.km)[0];
-      if (!nearby) return showError('Stop locations were unavailable in the feed.', 'location');
-      chooseStop(nearby.s.id);
-      addMessage(`Your nearest listed stop by straight-line distance is ${nearby.s.name} (about ${nearby.km.toFixed(2)} km). This is not a walking-distance estimate. I've selected it.`);
-    },err=>{ $('nearMeBtn').disabled=false;showError('Location unavailable: '+err.message+' Choose your stop manually instead.', 'location'); },{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+
+  async function handleChatSubmit(question) {
+    const clean = question.trim();
+    if (!clean || state.chatBusy) return;
+    state.chatBusy = true;
+    $('chatSend').disabled = true;
+    appendMessage('user', clean);
+
+    try {
+      const reply = await answerQuestion(clean);
+      appendMessage('bot', reply);
+    } catch (err) {
+      appendMessage('bot', 'Sorry, I could not fetch live data right now: ' + err.message);
+    } finally {
+      state.chatBusy = false;
+      $('chatSend').disabled = false;
+      $('chatInput').focus();
+    }
   }
-  function wireEvents(){
-    $('stopSelect').addEventListener('change',e=>chooseStop(e.target.value));
-    $('nearMeBtn').addEventListener('click',findNearMe);
-    $('retryStopsBtn').addEventListener('click',async()=>{if(await loadStops()) chooseStop(state.stopId)});
-    $('refreshBtn').addEventListener('click',()=>refreshSelected(true));
-    $('chatForm').addEventListener('submit',e=>{e.preventDefault();submitQuestion($('chatInput').value)});
-    $('suggestions').addEventListener('click',e=>{const b=e.target.closest('button[data-question]');if(b)submitQuestion(b.dataset.question)});
-    $('clearChatBtn').addEventListener('click',resetChat);
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden && (!state.lastChecked || Date.now()-state.lastChecked.getTime() >= REFRESH_MS)) refreshSelected()});
-  }
-  async function init(){
-    try {state.stopId=localStorage.getItem(STORE_KEY) || DEFAULT_STOP;}catch(_){state.stopId=DEFAULT_STOP;}
-    wireEvents();resetChat();setConnectionUI();
-    await loadStops();
-    if (state.stops.length && !getStop(state.stopId)) state.stopId=DEFAULT_STOP;
-    $('stopSelect').value=state.stopId;
-    renderBoard();await refreshSelected();
-    setInterval(()=>{setConnectionUI();if(Date.now()>=state.nextRefresh&&!state.pollBusy)refreshSelected()},1000);
-  }
-  init();
+
+  // --- Event Listeners & Initialization ---
+  $('stopSelect').addEventListener('change', e => chooseStop(e.target.value));
+  $('refreshBtn').addEventListener('click', () => refreshSelected(true));
+  $('retryStopsBtn').addEventListener('click', () => loadStops().then(ok => ok && refreshSelected(true)));
+  $('nearMeBtn').addEventListener('click', findNearestStop);
+  $('directionsBtn').addEventListener('click', () => openDirections(state.stopId));
+  $('refreshDirectionsBtn').addEventListener('click', () => openDirections(state.stopId));
+  $('closeDirectionsBtn').addEventListener('click', () => $('directionsCard').classList.add('hidden'));
+  $('clearChatBtn').addEventListener('click', resetChat);
+
+  $('suggestions').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const q = chip.dataset.question || chip.textContent;
+    handleChatSubmit(q);
+  });
+
+  $('chatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('chatInput');
+    const q = input.value;
+    input.value = '';
+    handleChatSubmit(q);
+  });
+
+  // Restore last selected stop safely
+  try {
+    const saved = localStorage.getItem(STORE_KEY);
+    if (saved && /^[A-Z]{2,5}$/.test(saved)) state.stopId = saved;
+  } catch (_) { /* Ignore storage restrictions */ }
+
+  applyLineTheme();
+  resetChat();
+  setConnectionUI();
+  loadStops().finally(() => refreshSelected(false));
+
+  // Update Dublin clock, countdown, and trigger 20-second live refresh
+  setInterval(() => {
+    setConnectionUI();
+    if (!state.pollBusy && Date.now() >= state.nextRefresh) {
+      refreshSelected(false);
+    }
+  }, 1000);
   </script>
 </body>
 </html>
