@@ -419,7 +419,7 @@
 
   <script>
   'use strict';
-  // Single-file app. Only the public TII-backed relay endpoints and free OpenStreetMap/OSRM routing are used; no API keys required.
+  // Single-file app. Only the public TII-backed relay endpoints and free OpenStreetMap/Valhalla routing are used; no API keys required.
   const API = 'https://myluas-live-feed.fit-coin-8703.chatgpt.site';
   const REFRESH_MS = 20000;
   const FETCH_TIMEOUT_MS = 12000;
@@ -462,6 +462,7 @@
     lastChecked: null,
     lastProviderStamp: '',
     previousProviderStamp: '',
+    sourceFirstSeenAt: null,
     nextRefresh: Date.now() + REFRESH_MS,
     pollBusy: false,
     chatBusy: false,
@@ -721,7 +722,9 @@
 
   function setConnectionUI() {
     const age = state.lastChecked ? Date.now() - state.lastChecked.getTime() : Infinity;
-    const active = !!state.forecast && !state.failed && age < 65000;
+    const upstreamAge = state.sourceFirstSeenAt ? Date.now() - state.sourceFirstSeenAt.getTime() : Infinity;
+    const upstreamCurrent = !!state.lastProviderStamp && upstreamAge < 65000;
+    const active = !!state.forecast && !state.failed && age < 65000 && upstreamCurrent;
     const pulse = $('livePulse');
     const tag = $('liveTag');
 
@@ -736,7 +739,7 @@
     } else {
       tag.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold tracking-wide whitespace-nowrap';
       pulse.className = 'w-2 h-2 rounded-full bg-amber-500 ring-4 ring-amber-500/20 flex-none';
-      $('liveText').textContent = state.forecast ? 'STALE DATA' : 'CONNECTING';
+      $('liveText').textContent = state.forecast ? (upstreamCurrent ? 'STALE FETCH' : 'SOURCE NOT UPDATED') : 'CONNECTING';
     }
 
     $('countdown').textContent = Math.max(0, Math.ceil((state.nextRefresh - Date.now()) / 1000)) + 's';
@@ -754,6 +757,11 @@
       state.previousChecked = state.lastChecked;
       state.previousProviderStamp = state.lastProviderStamp;
       state.lastProviderStamp = data.created || '';
+      if (data.created && data.created === state.previousProviderStamp) {
+        state.sourceFirstSeenAt = state.sourceFirstSeenAt || state.previousChecked || checkedAt;
+      } else {
+        state.sourceFirstSeenAt = checkedAt;
+      }
       state.forecast = data;
       state.lastChecked = checkedAt;
       state.failed = false;
@@ -806,6 +814,7 @@
     state.failed = false;
     state.lastProviderStamp = '';
     state.previousProviderStamp = '';
+    state.sourceFirstSeenAt = null;
     state.boardSequence++;
     state.previousForecast = null;
     state.previousChecked = null;
@@ -822,7 +831,7 @@
     }
   }
 
-  // --- Interactive Walking Directions (Leaflet + OSRM Foot Routing + Google Maps Link) ---
+  // --- Walking directions (Valhalla pedestrian routes + Google Maps fallback) ---
   const mapState = {
     map: null,
     routeLayer: null,
@@ -833,9 +842,10 @@
 
   function getStopCoords(id) {
     const stop = getStop(id);
-    const lat = stop?.lat ?? stop?.latitude ?? FALLBACK_COORDS[id]?.[0];
-    const lon = stop?.lon ?? stop?.lng ?? stop?.longitude ?? FALLBACK_COORDS[id]?.[1];
-    return (typeof lat === 'number' && typeof lon === 'number') ? [lat, lon] : null;
+    const lat = Number(stop?.lat ?? stop?.latitude ?? FALLBACK_COORDS[id]?.[0]);
+    const lon = Number(stop?.lon ?? stop?.lng ?? stop?.longitude ?? FALLBACK_COORDS[id]?.[1]);
+    // Sanity check: fallback coordinates are approximate and require ground-truth verification.
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= 53.1 && lat <= 53.5 && lon >= -6.6 && lon <= -6.0 ? [lat, lon] : null;
   }
 
   function formatDistance(meters) {
@@ -949,37 +959,45 @@
         }
 
         try {
-          // OSRM public foot routing API (free, no API key required)
-          const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${userCoords[1]},${userCoords[0]};${stopCoords[1]},${stopCoords[0]}?overview=full&geometries=geojson&steps=true`;
-          const routeData = await fetchJSON(osrmUrl);
-          const route = routeData?.routes?.[0];
-          if (!route) throw new Error('No walking route found.');
-
-          const walkMins = Math.max(1, Math.round(route.duration / 60));
-          const distLabel = formatDistance(route.distance);
-          summary.textContent = `${walkMins} min walk · ${distLabel} to ${stopName}`;
-
-          renderMapMarkers(userCoords, stopCoords, route.geometry);
-
-          const rawSteps = route.legs?.[0]?.steps || [];
-          stepsEl.innerHTML = rawSteps.length
-            ? rawSteps.map((s, idx) => `
-                <li class="flex items-start justify-between gap-3 py-1.5 border-b border-slate-100 last:border-none">
-                  <span class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-royal-goldSoft border border-royal-goldLight text-royal-goldDark text-[10px] font-extrabold grid place-items-center flex-none mt-0.5">${idx + 1}</span>
-                    <span class="font-medium text-royal-navy">${htmlEscape(formatStepInstruction(s))}</span>
-                  </span>
-                  <span class="text-[11px] font-bold text-slate-400 whitespace-nowrap tabular-nums">${s.distance > 0 ? formatDistance(s.distance) : ''}</span>
-                </li>
-              `).join('')
-            : '<li class="text-slate-500">Follow the highlighted gold path on the map to the stop.</li>';
+          // Valhalla explicitly requests pedestrian routing; public demo availability is not guaranteed.
+          const query = {
+            locations: [{ lat: userCoords[0], lon: userCoords[1] }, { lat: stopCoords[0], lon: stopCoords[1] }],
+            costing: 'pedestrian',
+            directions_options: { units: 'kilometers', language: 'en-US' },
+            shape_format: 'geojson'
+          };
+          const routeUrl = 'https://valhalla1.openstreetmap.de/route?json=' + encodeURIComponent(JSON.stringify(query));
+          const routeData = await fetchJSON(routeUrl);
+          const trip = routeData?.trip;
+          if (!trip?.legs?.length || !Array.isArray(trip.legs[0].shape?.coordinates)) throw new Error('No usable pedestrian route was returned.');
+          const minutes = Math.max(1, Math.round(Number(trip.summary?.time || 0) / 60));
+          const metres = Math.round(Number(trip.summary?.length || 0) * 1000);
+          if (!Number.isFinite(metres) || metres <= 0) throw new Error('Pedestrian distance was unavailable.');
+          summary.textContent = `${minutes} min walk · ${formatDistance(metres)} · Pedestrian routing estimate`;
+          const feature = { type: 'LineString', coordinates: trip.legs[0].shape.coordinates };
+          renderMapMarkers(userCoords, stopCoords, feature);
+          const manoeuvres = trip.legs.flatMap(leg => leg.maneuvers || []);
+          stepsEl.replaceChildren();
+          if (!manoeuvres.length) {
+            const li = document.createElement('li');
+            li.className = 'text-slate-500';
+            li.textContent = 'Follow the displayed pedestrian route. Open Google Maps for live navigation.';
+            stepsEl.appendChild(li);
+          } else {
+            manoeuvres.forEach((step, idx) => {
+              const li = document.createElement('li');
+              li.className = 'py-1.5 border-b border-slate-100 last:border-none';
+              li.textContent = (idx + 1) + '. ' + (step.instruction || 'Continue walking') + (Number.isFinite(step.length) ? ' · ' + formatDistance(step.length * 1000) : '');
+              stepsEl.appendChild(li);
+            });
+          }
         } catch (_) {
           // Graceful fallback if OSRM is unreachable: straight-line estimate + dashed path
           const km = haversineKm(userCoords[0], userCoords[1], stopCoords[0], stopCoords[1]);
           const estMins = Math.max(1, Math.round((km / 4.8) * 60));
-          summary.textContent = `~${estMins} min walk (${formatDistance(km * 1000)} direct) · Tap Google Maps for live turn-by-turn`;
+          summary.textContent = `${formatDistance(km * 1000)} straight-line distance · Walking time unavailable`;
           renderMapMarkers(userCoords, stopCoords, null);
-          stepsEl.innerHTML = '<li class="text-slate-500">Live street routing is temporarily busy. Follow the dashed guide on the map or tap “Open in Google Maps”.</li>';
+          stepsEl.innerHTML = '<li class="text-slate-500">Pedestrian routing is unavailable. The dashed line is not a walking route. Open Google Maps for street-by-street directions.</li>';
         }
       },
       err => {
@@ -1152,7 +1170,10 @@
       return `Service status for ${data.stopName}:\n${data.message}`;
     }
 
-    // 5. Default: Live arrivals (optionally filtered by destination)
+    // 5. Give an explicit scope response rather than unrelated arrival times.
+    if (/\b(fare|ticket|price|refund|lost property|complaint|account|password|payment)\b/.test(q)) {
+      return 'I can check live arrivals, service updates, stops and directions. For tickets, fares or other enquiries, please use the official Luas website.';
+    }
     return formatStopSummary(data, destinationFilter);
   }
 
