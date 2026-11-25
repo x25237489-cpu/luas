@@ -1072,7 +1072,7 @@
           const trip = routeData?.trip;
           if (!trip?.legs?.length || !Array.isArray(trip.legs[0].shape?.coordinates)) throw new Error('No usable pedestrian route was returned.');
           if (requestId !== state.directionsSequence || targetId !== state.stopId) return;
-          const minutes = Math.max(1, Math.round(Number(trip.summary?.time || 0) / 60));
+          const minutes = Math.max(1, Math.ceil(Number(trip.summary?.time || 0) / 60));
           const metres = Math.round(Number(trip.summary?.length || 0) * 1000);
           if (!Number.isFinite(metres) || metres <= 0) throw new Error('Pedestrian distance was unavailable.');
           summary.textContent = `${minutes} min walk · ${formatDistance(metres)} · Pedestrian routing estimate`;
@@ -1161,8 +1161,10 @@
           showError('Could not determine the nearest Luas stop right now.', 'geo');
           return;
         }
+        const wasShowingDirections = !$('directionsCard').classList.contains('hidden');
         chooseStop(best.id);
-        appendMessage('bot', `Closest stop found: ${best.name} (${formatDistance(bestDist * 1000)} away). Live arrivals are loading now — tap “Directions” if you need a walking route.`);
+        if (!wasShowingDirections) openDirections(best.id);
+        appendMessage('bot', `Closest stop found: ${best.name} (${formatDistance(bestDist * 1000)} direct distance). Walking estimate and live arrivals are being compared above.`);
       },
       err => {
         btn.disabled = false;
