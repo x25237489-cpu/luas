@@ -263,6 +263,23 @@
 
       <!-- Left Column: Live Departure Board -->
       <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0" aria-label="Live tram departures">
+        <!-- Live commute comparison: only shown after the visitor requests walking directions. -->
+        <section id="commuteCard" hidden class="bg-white rounded-2xl border border-royal-gold/50 shadow-md overflow-hidden" aria-label="Walk and catch the next tram">
+          <div class="h-1 bg-gradient-to-r from-royal-goldDark via-royal-gold to-royal-goldLight"></div>
+          <div class="p-5 sm:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div><span class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-royal-goldDark">Your commute check</span>
+                <h3 id="commuteStop" class="text-lg font-extrabold text-royal-navy">Walk to your stop</h3></div>
+              <span id="commuteBadge" class="rounded-full px-3 py-1 text-[11px] font-extrabold bg-slate-100 text-slate-600">CHECKING</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="rounded-xl bg-royal-silverLight p-4"><p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Walking time</p><strong id="commuteWalk" class="text-2xl font-extrabold tabular-nums text-royal-navy">—</strong><p id="commuteWalkSource" class="text-[11px] text-slate-500 mt-1 mb-0">Finding route…</p></div>
+              <div class="rounded-xl bg-royal-goldSoft p-4"><p class="text-[10px] font-bold uppercase tracking-wide text-royal-goldDark mb-1">Next tram</p><strong id="commuteTram" class="text-2xl font-extrabold tabular-nums text-royal-navy">—</strong><p id="commuteDirection" class="text-[11px] text-slate-600 mt-1 mb-0">Checking live arrivals…</p></div>
+            </div>
+            <p id="commuteVerdict" class="font-bold text-sm text-royal-navy mb-2" role="status" aria-live="polite">Checking live departures and walking time…</p>
+            <p id="commuteNote" class="text-[11px] leading-relaxed text-slate-500 mb-0">Estimates only. Allow extra time to reach the platform. Refresh your location if you move.</p>
+          </div>
+        </section>
         <!-- Collapsible Walking Directions & Interactive Map Card -->
         <div id="directionsCard" class="hidden bg-white rounded-2xl border border-royal-silver shadow-md shadow-slate-900/[0.04] overflow-hidden" aria-label="Walking directions to selected Luas stop">
           <div class="h-1 w-full bg-gradient-to-r from-royal-goldDark via-royal-gold to-royal-goldLight"></div>
@@ -472,6 +489,8 @@
     queuedRefresh: false,
     previousForecast: null,
     previousChecked: null,
+    commute: null,
+    directionsSequence: 0,
     errors: {}
   };
 
@@ -744,6 +763,7 @@
 
     $('countdown').textContent = Math.max(0, Math.ceil((state.nextRefresh - Date.now()) / 1000)) + 's';
     $('clock').textContent = 'DUBLIN ' + timeText(new Date());
+    renderCommute();
   }
 
   // --- Polling & Stop Selection ---
@@ -769,6 +789,7 @@
       hideError('forecast');
       renderBoard();
       setConnectionUI();
+      renderCommute();
     }
     return { data, checkedAt };
   }
@@ -820,6 +841,8 @@
     state.previousChecked = null;
     $('stopSelect').value = id;
     state.chatContext = { stopId: id, direction: null };
+    if (state.commute && state.commute.stopId !== id) state.commute = null;
+    renderCommute();
     try { localStorage.setItem(STORE_KEY, id); } catch (_) { /* Browser storage can be blocked. */ }
     hideError('forecast');
     renderBoard();
@@ -829,6 +852,79 @@
     if (!$('directionsCard').classList.contains('hidden')) {
       openDirections(id);
     }
+  }
+
+  // Compare a walking estimate with actual arrival predictions from the same stop.
+  // No GPS coordinates or route geometry are persisted or sent to the tram feed.
+  function renderCommute() {
+    const c = state.commute;
+    const panel = $('commuteCard');
+    if (!c || c.stopId !== state.stopId) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    $('commuteStop').textContent = 'Walk to ' + currentName();
+    $('commuteWalk').textContent = Number.isFinite(c.walkMinutes) ? c.walkMinutes + ' min' : '—';
+    $('commuteWalkSource').textContent = c.walkType === 'route' ? 'Mapped pedestrian route' :
+      c.walkType === 'rough' ? 'Rough distance-based estimate' : 'Awaiting route estimate';
+    const forecast = state.forecast;
+    const fresh = forecast && !state.failed && state.lastChecked &&
+      Date.now() - state.lastChecked.getTime() < 65000 &&
+      state.lastProviderStamp && state.sourceFirstSeenAt &&
+      Date.now() - state.sourceFirstSeenAt.getTime() < 65000;
+    const departures = fresh ? forecast.directions.flatMap(d =>
+      d.trams.map(t => ({ due: t.due, direction: d.name, destination: t.destination })))
+      .filter(t => Number.isFinite(t.due) && t.due >= 0)
+      .sort((a, b) => a.due - b.due) : [];
+    const badge = $('commuteBadge');
+    const result = $('commuteVerdict');
+    const note = $('commuteNote');
+    badge.className = 'rounded-full px-3 py-1 text-[11px] font-extrabold ';
+    if (!fresh) {
+      $('commuteTram').textContent = '—';
+      $('commuteDirection').textContent = 'Fresh arrival data unavailable';
+      result.textContent = 'Cannot compare yet — refresh the live tram forecast.';
+      badge.textContent = 'UNAVAILABLE';
+      badge.className += 'bg-amber-100 text-amber-900';
+    } else if (!departures.length) {
+      $('commuteTram').textContent = '—';
+      $('commuteDirection').textContent = 'No upcoming trams listed';
+      result.textContent = 'No upcoming tram can be compared right now.';
+      badge.textContent = 'NO TIMES';
+      badge.className += 'bg-slate-100 text-slate-700';
+    } else {
+      const next = departures[0];
+      $('commuteTram').textContent = next.due === 0 ? 'Due' : next.due + ' min';
+      $('commuteDirection').textContent = next.direction + ' · ' + next.destination;
+      if (!Number.isFinite(c.walkMinutes)) {
+        result.textContent = 'Arrival found. Checking your walking time…';
+        badge.textContent = 'CHECKING';
+        badge.className += 'bg-slate-100 text-slate-700';
+      } else {
+        const margin = next.due - c.walkMinutes - 2; // 2-minute boarding allowance
+        if (margin >= 2) {
+          result.textContent = 'You may reach this tram with about ' + margin + ' min to spare, including a 2-min boarding allowance.';
+          badge.textContent = 'POSSIBLE';
+          badge.className += 'bg-emerald-100 text-emerald-800';
+        } else if (margin >= 0) {
+          result.textContent = 'It is tight — the estimate leaves only ' + margin + ' min spare after a boarding allowance.';
+          badge.textContent = 'TIGHT';
+          badge.className += 'bg-amber-100 text-amber-900';
+        } else {
+          const later = departures.find(t => t.due - c.walkMinutes - 2 >= 2);
+          result.textContent = later
+            ? 'The next tram is probably too soon. A later ' + later.destination + ' tram is predicted in ' + later.due + ' min.'
+            : 'The next tram may be too soon. Check later arrivals or shorten your walk.';
+          badge.textContent = 'LIKELY MISS';
+          badge.className += 'bg-rose-100 text-rose-800';
+        }
+      }
+    }
+    note.textContent = (c.walkType === 'rough'
+      ? 'Rough estimate based on straight-line distance plus a detour allowance, not a verified walking route. '
+      : 'Walking time and tram arrivals are predictions. ') +
+      'Includes 2 min to reach the platform. Traffic signals, access, GPS error and service changes may affect your journey.';
   }
 
   // --- Walking directions (Valhalla pedestrian routes + Google Maps fallback) ---
@@ -927,6 +1023,9 @@
     const gmapsLink = $('googleMapsLink');
     const stopName = getStop(targetId)?.name || currentName();
     const stopCoords = getStopCoords(targetId);
+    const requestId = ++state.directionsSequence;
+    state.commute = {stopId: targetId, walkMinutes: null, walkType: null};
+    renderCommute();
 
     card.classList.remove('hidden');
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -949,6 +1048,7 @@
 
     navigator.geolocation.getCurrentPosition(
       async pos => {
+        if (requestId !== state.directionsSequence || targetId !== state.stopId) return;
         const userCoords = [pos.coords.latitude, pos.coords.longitude];
         mapState.userCoords = userCoords;
 
@@ -971,10 +1071,13 @@
           const routeData = await fetchJSON(routeUrl);
           const trip = routeData?.trip;
           if (!trip?.legs?.length || !Array.isArray(trip.legs[0].shape?.coordinates)) throw new Error('No usable pedestrian route was returned.');
+          if (requestId !== state.directionsSequence || targetId !== state.stopId) return;
           const minutes = Math.max(1, Math.round(Number(trip.summary?.time || 0) / 60));
           const metres = Math.round(Number(trip.summary?.length || 0) * 1000);
           if (!Number.isFinite(metres) || metres <= 0) throw new Error('Pedestrian distance was unavailable.');
           summary.textContent = `${minutes} min walk · ${formatDistance(metres)} · Pedestrian routing estimate`;
+          state.commute = {stopId: targetId, walkMinutes: minutes, walkType: 'route'};
+          renderCommute();
           const feature = { type: 'LineString', coordinates: trip.legs[0].shape.coordinates };
           renderMapMarkers(userCoords, stopCoords, feature);
           const manoeuvres = trip.legs.flatMap(leg => leg.maneuvers || []);
@@ -993,15 +1096,19 @@
             });
           }
         } catch (_) {
-          // Graceful fallback if OSRM is unreachable: straight-line estimate + dashed path
+          if (requestId !== state.directionsSequence || targetId !== state.stopId) return;
+          // Routing fallback: approximate path length is 1.4x the direct distance, at 4.5 km/h.
           const km = haversineKm(userCoords[0], userCoords[1], stopCoords[0], stopCoords[1]);
-          const estMins = Math.max(1, Math.round((km / 4.8) * 60));
-          summary.textContent = `${formatDistance(km * 1000)} straight-line distance · Walking time unavailable`;
+          const estMins = Math.max(2, Math.ceil(((km * 1.4) / 4.5) * 60));
+          state.commute = {stopId: targetId, walkMinutes: estMins, walkType: 'rough'};
+          renderCommute();
+          summary.textContent = `About ${estMins} min walk (rough estimate) · ${formatDistance(km * 1000)} direct`;
           renderMapMarkers(userCoords, stopCoords, null);
           stepsEl.innerHTML = '<li class="text-slate-500">Pedestrian routing is unavailable. The dashed line is not a walking route. Open Google Maps for street-by-street directions.</li>';
         }
       },
       err => {
+        if (requestId !== state.directionsSequence || targetId !== state.stopId) return;
         summary.textContent = 'Location permission needed: ' + (err.message || 'Enable GPS to see your route.');
         stepsEl.innerHTML = '<li class="text-slate-500">Allow location access and click “Recenter &amp; update”, or tap “Open in Google Maps”.</li>';
         if (stopCoords) {
